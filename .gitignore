@@ -1,0 +1,6 @@
+download/
+scripts/
+skills/
+upload/
+node_modules/
+.env
