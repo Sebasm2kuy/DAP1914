@@ -2,7 +2,97 @@
 
 Aplicación web completa (WMS) que reemplaza la planilla **Control_Stock_Deposito_Fiscal_CLIENTES.xlsx**: mismos datos, mismas reglas de negocio, operación en tiempo real.
 
-**Un solo archivo, sin instalación ni dependencias**: abrí `index.html` en cualquier navegador (Chrome, Edge, Firefox) y listo. También funciona publicada en GitHub Pages.
+**Arquitectura monousuario sin servidores**: la app corre 100% en el navegador y usa la cuenta de Google del depósito — **frimaraldap1914@gmail.com** — como base de datos y respaldo (**Google Drive**) y para enviar correos (**Gmail**). Sin Supabase, sin Firebase, sin backend: solo un `index.html` y tu cuenta de Google.
+
+```
+┌─────────────────────────────  Navegador (cualquier PC / celular)  ─────────────────────────────┐
+│  index.html (app completa)                                                                      │
+│   ├─ Caché local inmediata (LocalStorage) → cargas, filtros y consultas al instante, offline    │
+│   ├─ OAuth2 client-side (Google Identity Services, login_hint: frimaraldap1914@gmail.com)       │
+│   ├─ Google Drive API → carpeta WMS_DAP1914 (maestro .xlsx, respaldos fechados, PDFs de DUAs)   │
+│   └─ Gmail API → comprobantes y reportes por correo con Excel/PDF adjuntos                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Cómo empezar
+
+### Opción A · GitHub Pages (recomendada — habilita Drive y Gmail)
+
+1. Este repositorio ya está publicado: activá **Settings → Pages → Source: Deploy from a branch → `main` / `/ (root)` → Save**.
+2. En un minuto queda andando en `https://sebasm2kuy.github.io/DAP1914/`.
+3. Abrí ese enlace, cargá tus datos y conectá Google Drive (ver guía abajo).
+
+### Opción B · Servidor local en tu PC (también habilita Drive y Gmail)
+
+```bash
+cd carpeta/donde/esta/index.html
+python -m http.server 8000
+# abrí http://localhost:8000
+```
+
+### Opción C · Archivo local (100% offline, sin Google)
+
+Doble clic en `index.html`. **Todo funciona igual** (importar/exportar Excel, respaldos JSON) salvo la sincronización con Drive/Gmail, que Google no permite desde `file://`.
+
+Al abrir la app por primera vez elegís: **Importar mi Excel** (recomendado), **cargar los datos históricos incluidos** (foto de tu planilla al 19/11/2026: 117 movimientos, 2 clientes, 12 SKUs, pallets vacíos) o **empezar de cero**. Antes de cada importación se crea un snapshot automático.
+
+---
+
+## Sincronización con Google Drive (frimaraldap1914@gmail.com)
+
+Tocá el botón **Drive** del encabezado (o la tarjeta de sincronización del Panel). Al conectar con la cuenta del depósito — que ya viene **preseleccionada en la pantalla de login de Google** (`login_hint: frimaraldap1914@gmail.com`) — la app crea (o encuentra, si ya existe) esta estructura en **Mi Unidad**:
+
+| Archivo / carpeta | Qué es |
+|---|---|
+| `WMS_DAP1914/WMS_DAP1914_DB.xlsx` | **Archivo maestro** con las pestañas del sistema: Panel, STOCK ACTUAL, Movimientos, Posiciones, Resumen SKU, Clientes, PALLETS VACIOS (+ Productos, el catálogo maestro). Se actualiza en cada sincronización. |
+| `WMS_DAP1914/WMS_DAP1914_estado.json` | Estado completo de la app (reservas, estados aduaneros, auditoría, configuración) para continuar en otro dispositivo **sin perder nada**. |
+| `WMS_DAP1914/Respaldos/WMS_DAP1914_DB_YYYYMMDD_HHMM.xlsx` | **Copias de respaldo fechadas** en cada «Respaldar ahora» (se conservan las últimas 15). |
+| `WMS_DAP1914/Documentacion_DUAs/` | **PDFs adjuntos por DUA** (DUA escaneado, remitos, documentación aduanera) vinculados a cada DUA o movimiento. |
+
+- **Guardar en Drive**: sube el maestro `.xlsx` + el estado completo.
+- **Descargar desde Drive**: en otro dispositivo, iniciá sesión con la misma cuenta y con un clic bajás el último estado guardado (con snapshot de seguridad previo). La app te muestra la fecha del archivo en Drive para decidir.
+- **Sincronización automática** (opcional, recomendada): guarda en Drive ~25 s después de cada cambio.
+- **Documentación por DUA**: en **Aduana / DUA** cada fila tiene un botón 📁 para adjuntar, listar y descargar los PDFs de ese DUA; también se pueden adjuntar por correo.
+
+## Envío de correos con Gmail
+
+Con la misma sesión de Google, desde:
+
+- **Movimientos** → ✉ en cada fila: **comprobante de ingreso/egreso** (PDF generado por la app + Excel completo + documentación del DUA si existe).
+- **Clientes** → ✉ en cada fila: **reporte de stock del cliente** (PDF + Excel).
+- **Aduana / DUA** → 📁 → «Enviar por correo»: **stock del DUA** (PDF + Excel + los PDFs adjuntos en Drive).
+- **Reportes** → «Enviar por correo»: **reporte del período** (rotación y ocupación en PDF + Excel).
+
+El asunto y el cuerpo vienen prellenados; se puede editar destinatario, asunto, mensaje y elegir adjuntos antes de enviar.
+
+---
+
+## Configuración de Google Drive y Gmail (una sola vez, ~3 minutos)
+
+La app incluye esta misma guía en **Configuración → Sincronización con Google Drive y Gmail**, con el *origen exacto* de tu instalación para copiar y pegar en Google Console.
+
+1. Abrí <https://console.cloud.google.com> e iniciá sesión con la cuenta del depósito: **frimaraldap1914@gmail.com**.
+2. En la barra superior, desplegá el selector de proyectos → **Nuevo proyecto** → nombre `WMS DAP1914` → **Crear**.
+3. Menú ☰ → **APIs y servicios → Biblioteca** → buscá **Google Drive API** → **Activar**. Repetí con **Gmail API**.
+4. **APIs y servicios → Pantalla de consentimiento OAuth** → tipo **Externo** → Crear → nombre de la app `WMS DAP1914` → guardá. En **Usuarios de prueba** agregá **frimaraldap1914@gmail.com** *(obligatorio mientras el proyecto quede en modo Testing)*.
+5. **Credenciales → Crear credenciales → ID de cliente de OAuth** → tipo **Aplicación web**.
+6. En **Orígenes de JavaScript autorizados** → **Agregar URI** y pegá el origen donde usás la app, por ejemplo:
+   - `https://sebasm2kuy.github.io` (GitHub Pages), y/o
+   - `http://localhost:8000` (servidor local).
+7. Creá el ID de cliente y **copiá el valor** (termina en `.apps.googleusercontent.com`).
+8. En la app: **Configuración → Sincronización con Google** → pegá el **Google Client ID** → **Guardar** → **Conectar con Google Drive**. La primera vez Google avisa que la app «no está verificada»: es lo esperado en modo Testing con tu propia cuenta → **Continuar**.
+
+**Permisos mínimos que pide la app** (verificalos en la pantalla de consentimiento):
+
+| Permiso | Alcance real |
+|---|---|
+| `drive.file` | Ver y gestionar **solo los archivos que esta app crea** (carpeta `WMS_DAP1914`). Nunca ve el resto de tu Drive. |
+| `gmail.send` | **Solo enviar** correos en tu nombre. No lee tu bandeja. |
+| `userinfo.email` | Saber con qué cuenta iniciaste sesión. |
+
+El token de acceso vive únicamente en la sesión del navegador (nunca se sube a ningún lado ni se guarda en el repo) y la app solo lo usa para las operaciones anteriores.
 
 ---
 
@@ -12,51 +102,37 @@ Aplicación web completa (WMS) que reemplaza la planilla **Control_Stock_Deposit
 
 | Módulo | Qué hace |
 |---|---|
-| **Panel** | 4 KPIs (Stock actual · cajas, Líneas de inventario con saldo, SKU registrados, Movimientos cargados), stock por producto con %, historial de contenedores/DUA con saldo remanente y **mapa visual interactivo de racks** (clic en una posición → detalle, salida, traslado, etiqueta). |
+| **Panel** | 4 KPIs (Stock actual · cajas, Líneas de inventario con saldo, SKU registrados, Movimientos cargados), stock por producto con %, historial de contenedores/DUA con saldo remanente, **mapa visual interactivo de racks** (clic → detalle, salida, traslado, etiqueta) y **tarjeta de sincronización con Google Drive**. |
 | **Stock Actual** | Foto real por posición (A000–A990 y B000–B990 de 10 en 10, más Piso). Stock = Σ impacto de movimientos. Estados automáticos LIBRE / OCUPADO / REVISAR SALDO y **PALET COMPARTIDO (N ítems)** con desglose expandible. |
-| **Movimientos** | Fuente única de verdad con las 13 columnas de tu planilla (Fecha, Tipo, N.º stock, Cliente, Contenedor, DUA, Producto, Medida, Coordenada, Cantidad, Ref., Observaciones, Impacto). Tipos: Ingreso, Egreso, Ajuste +, Ajuste −. **Traslado** que genera automáticamente el egreso de origen y el ingreso en destino. |
+| **Movimientos** | Fuente única de verdad con las 13 columnas de tu planilla. Tipos: Ingreso, Egreso, Ajuste +, Ajuste −. **Traslado** que genera el egreso de origen y el ingreso en destino. Cada fila: **remito imprimible** y **envío del comprobante por correo**. |
 | **Posiciones** | Inventario por la clave (N.º stock · Cliente · Producto · Medida normalizada · Coordenada) con estado OK / SIN STOCK / REVISAR SALDO. |
 | **Resumen SKU** | Consolidado por (Producto + Medida) — agrupa mayúsculas/minúsculas y ×/x — con cajas actuales, ubicaciones activas y % del stock. |
-| **Clientes** | Maestro con código, estado Activo/Inactivo, contacto y observaciones. No se puede eliminar un cliente con movimientos históricos: se marca Inactivo. |
-| **Pallets Vacíos** | Registro cronológico con saldo corrido automático (stock anterior + ingreso − egreso) y KPI de saldo disponible. |
+| **Clientes** | Maestro con código, estado, contacto y observaciones + **envío de stock por correo**. |
+| **Pallets Vacíos** | Registro cronológico con saldo corrido automático y KPI de saldo disponible. |
 
 ### Extensiones WMS incorporadas
 
-- **Aduana / DUA** — saldos, trazabilidad, **días de permanencia** (con umbral configurable y alertas en el Panel) y **estado documental** editable (OK, pendiente de liberación, despacho, pesaje, pendiente de documentación).
-- **Catálogo de Productos / SKUs** — maestro (Producto, Medida, cliente asociado, unidad/observaciones) que se completa automáticamente al usar productos nuevos (alta al vuelo) y autocompleta medida/cliente en los formularios.
-- **Anulación controlada de movimientos** — no se borra: se registra un **ajuste de reversa** con motivo, el original queda marcado ANULADO y todo queda en la auditoría. Las ediciones aceptan **motivo de corrección**.
-- **Reservas / bloqueos** de mercadería por línea: el saldo disponible descuenta lo reservado; visible en el mapa (⚑) y en el detalle de posición.
-- **Conteo cíclico / inventario físico** — teórico vs. contado por zona, con generación automática de Ajustes ± por diferencia.
-- **Etiquetas de pallet/ubicación con código QR** imprimibles (una o por lote tras una carga por contenedor) y **remitos imprimibles** (Ctrl+P → guardar como PDF).
-- **Reportes por período** — rotación, ingresos/egresos/neto por producto, cliente y posición + foto de ocupación; exportables a CSV o PDF.
-- **Auditoría completa** — cada creación, edición, anulación, importación, reserva y cambio de configuración queda registrado con fecha, hora y rol.
-- **Roles** operario / administrador con **PIN** opcional: el operario carga movimientos y consulta; el administrador gestiona todo lo demás.
-- **Respaldos automáticos (snapshots)** antes de cada importación o restauración (se conservan los últimos 3, restaurables desde Configuración), más respaldo/restauración manual en JSON.
-- **Importación/exportación Excel** con SheetJS: lee tu archivo actual (con fórmulas o valores cacheados) y exporta un `.xlsx` limpio con las **8 pestañas** (las 7 originales + Productos).
-- **Búsqueda global instantánea** (Ctrl+K) por coordenada, N.º stock, DUA, contenedor, cliente o producto; filtros en todas las tablas; modo claro/oscuro; diseño responsive (móvil, tablet, escritorio).
-
-## Cómo empezar
-
-1. Abrí `index.html` en el navegador.
-2. En la pantalla de bienvenida elegí:
-   - **Importar mi Excel** → seleccioná tu `Control_Stock_Deposito_Fiscal_CLIENTES.xlsx` (recomendado), o
-   - **Cargar datos históricos incluidos** → foto de tu planilla al 19/11/2026 (117 movimientos, 2 clientes, 12 SKUs, pallets vacíos), o
-   - **Empezar de cero**.
-3. Operá. Antes de importar se crea un snapshot automático por si querés volver atrás.
-
-Los datos se guardan en el **almacenamiento local del navegador**. Para pasarlos a otra máquina: `Exportar → Respaldo JSON` y después `Restaurar respaldo`, o exportá el Excel. Cada navegador/PC mantiene sus propios datos.
+- **Aduana / DUA** — saldos, trazabilidad, **días de permanencia** (umbral configurable y alertas en el Panel), **estado documental** editable y **documentación PDF en Google Drive por DUA**.
+- **Catálogo de Productos / SKUs** — maestro que se completa al vuelo y autocompleta formularios.
+- **Anulación controlada** con ajuste de reversa + motivo; ediciones con motivo de corrección.
+- **Reservas / bloqueos**, **conteo cíclico**, **etiquetas con QR**, **remitos**, **reportes por período** (CSV/PDF/correo).
+- **Auditoría completa** de operaciones y **roles** operario/administrador con **PIN** opcional.
+- **Respaldos automáticos** (snapshots) + respaldo JSON manual + **respaldos fechados en Drive**.
+- **Importación/exportación Excel** (SheetJS) y **modo offline completo**: la app funciona sin conexión; al reconectar, sincroniza.
+- **Búsqueda global instantánea** (Ctrl+K), filtros en todas las tablas, modo claro/oscuro, diseño responsive (móvil, tablet, escritorio).
 
 ## Reglas de negocio replicadas
 
-- Coordenadas válidas: **Rack A y Rack B de `A000` a `B990` de 10 en 10** (100 posiciones cada uno) + zona especial **Piso**.
-- `Impacto stock`: +cantidad para Ingreso y Ajuste +; −cantidad para Egreso y Ajuste − (editable manualmente para preservar correcciones históricas, ej. A020).
-- KPI **Líneas de inventario con saldo** = posiciones físicas ocupadas en racks A y B, **excluyendo Piso y sin duplicar coordenadas compartidas**.
-- No se eliminan clientes ni SKUs con movimientos históricos (se marcan Inactivo / se retiran del catálogo solo los sin uso).
-- La exportación reproduce la estructura exacta de las pestañas originales (encabezados, KPIs en Panel y Stock Actual, orden cronológico con el orden original del archivo como desempate).
+- Coordenadas válidas: **Rack A y Rack B de `A000` a `B990` de 10 en 10** (100 posiciones c/u) + zona especial **Piso**.
+- `Impacto stock`: +cantidad para Ingreso y Ajuste +; −cantidad para Egreso y Ajuste − (editable para preservar correcciones históricas).
+- KPI **Líneas de inventario con saldo** = posiciones físicas ocupadas en racks A y B, excluyendo Piso y sin duplicar compartidas.
+- No se eliminan clientes ni SKUs con movimientos históricos (se marcan Inactivo).
+- La exportación reproduce la estructura exacta de las pestañas originales.
 
 ## Verificación
 
-Los KPIs calculados por la app coinciden 1:1 con la planilla original: **6.247 cajas · 98 posiciones ocupadas · 102 libres · 9 SKU con saldo · 99 posiciones con movimientos · 107 líneas de Posiciones · saldo de pallets −30**.
+- KPIs de la app 1:1 con la planilla original: **6.247 cajas · 98 posiciones ocupadas · 9 SKU con saldo · 99 posiciones con movimientos · 107 líneas de Posiciones · saldo de pallets −30**.
+- Suite de pruebas automática incluida: 45 checks de núcleo (generador PDF con tabla xref verificada byte a byte, constructor MIME de Gmail con roundtrip de adjuntos, codificación base64/WinAnsi) + 49 checks de navegador (Playwright: las 12 vistas, modales Drive/correo/configuración, generación de PDF en página validada con poppler, exportación Excel, persistencia, cero errores de consola) + chequeo responsive en 375/768/1360 px.
 
 ## Estructura del repositorio
 
@@ -65,6 +141,10 @@ index.html   → la aplicación completa (autocontenida: CSS, JS, SheetJS y gene
 README.md    → este archivo
 ```
 
-Librerías incrustadas (con sus licencias): [SheetJS xlsx 0.20.3](https://sheetjs.com) (Apache-2.0) y [qrcode-generator 1.4.4](https://github.com/kazuhikoarase/qrcode-generator) (MIT).
+Librerías incrustadas (con sus licencias): [SheetJS xlsx 0.20.3](https://sheetjs.com) (Apache-2.0) y [qrcode-generator 1.4.4](https://github.com/kazuhikoarase/qrcode-generator) (MIT). El flujo OAuth carga [Google Identity Services](https://developers.google.com/identity/gsi/web) desde los servidores de Google solo cuando conectás Drive.
 
-> Nota: el archivo `index.html` incluye la carga histórica embebida (tu foto al 19/11/2026) para poder arrancar con un clic. Si el repositorio es público y preferís no incluir esos datos operativos, borrrá el bloque `const WMS_SEED = ...` del archivo: la app seguirá funcionando y podrás importar tu Excel igual.
+## Seguridad y privacidad
+
+- Los datos operativos viven en el **almacenamiento local del navegador** y, al sincronizar, en **tu propia cuenta de Google** (`frimaraldap1914@gmail.com`): no hay servidores de terceros.
+- La app pide los permisos mínimos (`drive.file`, `gmail.send`, `userinfo.email`) y el token de sesión nunca sale del navegador.
+- Este repositorio es **público** y `index.html` incluye la carga histórica embebida (foto al 19/11/2026) para arrancar con un clic. Si preferís no exponer esos datos operativos: hacé el repo privado (Settings → General → Danger Zone → Change visibility) o borrá el bloque `const WMS_SEED = ...` del archivo; la app seguirá funcionando igual.

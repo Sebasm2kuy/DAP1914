@@ -541,6 +541,9 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 @media (max-width: 640px) {
   .topbar { flex-wrap: wrap; }
   .search-wrap { order: 10; flex-basis: 100%; max-width: none; }
+  .topbar-actions .btn .btn-txt { display: none; }        /* encabezado solo-icono en móvil */
+  .topbar-actions .btn { padding: 8px 10px; }
+  .topbar-title { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
   .kpi-grid { grid-template-columns: 1fr 1fr; }
   .kpi-value { font-size: 24px; }
   .cell { min-height: 30px; border-radius: 5px; }
@@ -609,6 +612,44 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 .grid-2 > *, .cont-grid > *, .kpi-grid > * { min-width: 0; }
 .card { min-width: 0; }
 
+/* ============================================================
+   GOOGLE DRIVE / GMAIL · estados y controles de sincronización
+   ============================================================ */
+.btn .drive-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-left: 7px; flex: none; }
+.drive-dot.g-off { background: var(--text-3, #9aa3ad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-3, #9aa3ad) 18%, transparent); }
+.drive-dot.g-mid { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 20%, transparent); }
+.drive-dot.g-ok { background: #22a55e; box-shadow: 0 0 0 3px rgba(34, 165, 94, .22); }
+.alert.ok { background: color-mix(in srgb, #22a55e 10%, var(--surface-2, #f2f5f8)); border-color: color-mix(in srgb, #22a55e 35%, transparent); color: #178a4c; }
+[data-theme="dark"] .alert.ok { color: #4fca85; }
+.sync-card { display: flex; align-items: center; gap: 14px; padding: 13px 16px; flex-wrap: wrap; }
+.sync-card > svg { flex: none; color: var(--accent); }
+.sync-card.ok > svg { color: #22a55e; }
+.sync-txt { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: var(--text-2); }
+.sync-txt b { font-size: 13.5px; }
+.drive-stats { display: flex; gap: 10px; flex-wrap: wrap; }
+.drive-stats .stat-mini { flex: 1; min-width: 170px; }
+.drive-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.mail-atts { display: flex; flex-direction: column; gap: 6px; }
+.mail-opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--border); border-radius: 9px; padding: 9px 12px; cursor: pointer; }
+.mail-opt:hover { border-color: var(--accent); }
+.mail-opt input { margin-top: 3px; accent-color: var(--accent); }
+.mail-opt b { font-size: 13px; display: block; }
+.mail-opt small { color: var(--text-3); font-size: 11.5px; }
+.gset-origin { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
+.gset-origin-l { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.gset-origin code { font-family: ui-monospace, monospace; font-size: 12.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; padding: 5px 9px; }
+.gset-guide { border: 1px solid var(--border); border-radius: 10px; padding: 0; margin: 4px 0 8px; }
+.gset-guide summary { cursor: pointer; padding: 11px 14px; font-weight: 700; font-size: 13px; color: var(--text); display: flex; align-items: center; gap: 8px; list-style: none; }
+.gset-guide summary::-webkit-details-marker { display: none; }
+.gset-guide[open] summary { border-bottom: 1px solid var(--border); }
+.gset-guide ol { margin: 12px 0 12px 6px; padding-left: 24px; display: flex; flex-direction: column; gap: 9px; }
+.gset-guide li { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+.gset-guide p { font-size: 12px; color: var(--text-3); margin: 0 14px 12px; line-height: 1.5; }
+@media (max-width: 640px) {
+  .sync-card .head-actions { flex-basis: 100%; }
+  .gset-origin code { font-size: 11.5px; word-break: break-all; }
+}
+
 </style>
 </head>
 <body>
@@ -642,6 +683,7 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
       </div>
 
       <div class="topbar-actions">
+        <button class="btn" id="btnDrive" title="Conectar con Google Drive · sincronización y respaldo"></button>
         <button class="btn" id="btnImport" title="Importar datos desde un archivo Excel .xlsx"></button>
         <div class="menu">
           <button class="btn" id="btnExportMenu" title="Exportar datos"></button>
@@ -722,6 +764,7 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 
 <!-- Entrada de archivos (invisible) -->
 <input type="file" id="fileJson" accept=".json,application/json" style="display:none">
+<input type="file" id="filePdfDua" accept="application/pdf,.pdf" multiple style="display:none">
 
 <script><!-- SheetJS xlsx 0.20.3 (https://sheetjs.com) -->
 /*! xlsx.js (C) 2013-present SheetJS -- http://sheetjs.com */
@@ -3099,6 +3142,11 @@ const ICONS = {
   gear: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.08a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55h.08a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.08a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/></svg>',
   shield: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-3.6 8-10V5l-8-3-8 3v7c0 6.4 8 10 8 10z"/></svg>',
   print: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>',
+  drive: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16.6A4.5 4.5 0 0 0 22 12.5a4.5 4.5 0 0 0-4.2-4.5A6.5 6.5 0 0 0 5.3 8.6 4 4 0 0 0 6 16.6z"/><path d="M8 18v3M12 17v4M16 18v3"/></svg>',
+  mail: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="M3 7l9 6 9-6"/></svg>',
+  folder: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2.4 2.4A2 2 0 0 0 12.8 8H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  copy: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  check: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg>',
 };
 function ic(n, cls) { return '<span class="ic-w" style="display:inline-flex;align-items:center' + (cls ? ';' + cls : '') + '">' + (ICONS[n] || '') + '</span>'; }
 
@@ -3483,6 +3531,7 @@ function dataChanged() {
   saveDB();
   renderCurrentView();
   renderNavCounts();
+  if (typeof scheduleAutoSync === 'function') scheduleAutoSync();
 }
 
 /* ---------- Toasts ---------- */
@@ -3779,6 +3828,7 @@ RENDERERS.panel = function () {
       '<button class="btn primary" id="pbNuevo">' + ICONS.plus + ' Nuevo movimiento</button>' +
       '<button class="btn" id="pbTraslado">' + ICONS.swap + ' Traslado</button>') +
     alerts.join('') +
+    (typeof drivePanelCardHTML === 'function' ? drivePanelCardHTML() : '') +
     kpiCardsHTML(k) +
     '<div class="grid-2">' +
       '<div class="card"><h2 class="card-title">' + ICONS.sku + ' Stock por producto <span class="right" id="panelTotalCajas"></span></h2><div id="panelProdTbl"></div></div>' +
@@ -3806,6 +3856,7 @@ RENDERERS.panel = function () {
   renderPanelProd();
   renderPanelCont();
   renderRackMap();
+  if (typeof bindDrivePanelCard === 'function') bindDrivePanelCard();
   $('#pbNuevo').onclick = () => openMovModal();
   $('#pbTraslado').onclick = () => openTrasladoModal();
   $('#mapRack').onchange = e => { MAP_F.rack = e.target.value; renderRackMap(); };
@@ -4111,6 +4162,7 @@ RENDERERS.movs = function (patch) {
         impactCell(impactoDe(m)) +
         '<td><div class="row-actions">' +
           '<button class="icon-btn" data-remito="' + esc(m.id) + '" title="Imprimir remito">' + ICONS.print + '</button>' +
+          '<button class="icon-btn" data-mail="' + esc(m.id) + '" title="Enviar comprobante por correo (Gmail)">' + ICONS.mail + '</button>' +
           (esAdmin() ? '<button class="icon-btn" data-edit="' + esc(m.id) + '" title="Editar">' + ICONS.edit + '</button>' : '') +
           (esAdmin() && !anulado ? '<button class="icon-btn" data-anular="' + esc(m.id) + '" title="Anular con ajuste de reversa">' + ICONS.ban + '</button>' : '') +
           (esAdmin() ? '<button class="icon-btn danger" data-del="' + esc(m.id) + '" title="Eliminar">' + ICONS.trash + '</button>' : '') +
@@ -4120,6 +4172,7 @@ RENDERERS.movs = function (patch) {
     html += '</tbody></table></div>';
     $('#movsTbl').innerHTML = html;
     $$('#movsTbl [data-remito]').forEach(b => b.onclick = () => imprimirRemito(DB.movimientos.find(x => x.id === b.dataset.remito)));
+    $$('#movsTbl [data-mail]').forEach(b => b.onclick = () => emailComprobanteMov(DB.movimientos.find(x => x.id === b.dataset.mail)));
     $$('#movsTbl [data-edit]').forEach(b => b.onclick = () => openMovModal(DB.movimientos.find(x => x.id === b.dataset.edit)));
     $$('#movsTbl [data-anular]').forEach(b => b.onclick = () => openAnularModal(DB.movimientos.find(x => x.id === b.dataset.anular)));
     $$('#movsTbl [data-del]').forEach(b => b.onclick = async () => {
@@ -4293,6 +4346,7 @@ RENDERERS.cli = function (patch) {
         '<td class="muted">' + esc(c.obs || '') + '</td>' +
         '<td class="num">' + fmtInt(n) + '</td>' +
         '<td><div class="row-actions">' +
+          '<button class="icon-btn" data-mailcli="' + esc(c.cliente) + '" title="Enviar stock del cliente por correo (Gmail)">' + ICONS.mail + '</button>' +
           (esAdmin() ? '<button class="icon-btn" data-edit="' + esc(c.id) + '" title="Editar">' + ICONS.edit + '</button>' +
           '<button class="icon-btn danger" data-del="' + esc(c.id) + '" title="Eliminar">' + ICONS.trash + '</button>' : '') +
         '</div></td></tr>';
@@ -4300,6 +4354,7 @@ RENDERERS.cli = function (patch) {
     if (!list.length) html += '<tr><td colspan="7" style="text-align:center;padding:26px;color:var(--text-3)">Sin clientes' + (q ? ' que coincidan con la búsqueda' : '') + '. Creá el primero con «Nuevo cliente».</td></tr>';
     html += '</tbody></table></div>';
     $('#cliTbl').innerHTML = html;
+    $$('#cliTbl [data-mailcli]').forEach(b => b.onclick = () => emailStockCliente(b.dataset.mailcli));
     $$('#cliTbl [data-edit]').forEach(b => b.onclick = () => openClienteModal(DB.clientes.find(x => x.id === b.dataset.edit)));
     $$('#cliTbl [data-del]').forEach(b => b.onclick = async () => {
       if (!esAdmin()) { toast('Solo un administrador puede eliminar clientes', 'warn'); return; }
@@ -4548,6 +4603,7 @@ RENDERERS.aduana = function (patch) {
         '<td><div class="row-actions">' +
           '<button class="icon-btn" data-ver="' + esc(d.dua) + '" title="Trazabilidad en Movimientos">' + ICONS.movs + '</button>' +
           (esAdmin() ? '<button class="icon-btn" data-estado="' + esc(d.dua) + '" title="Editar estado documental">' + ICONS.edit + '</button>' : '') +
+          '<button class="icon-btn" data-docs="' + esc(d.dua) + '" title="Documentación del DUA (PDFs en Google Drive)">' + ICONS.folder + '</button>' +
         '</div></td></tr>';
     }
     if (!list.length) html += '<tr><td colspan="11" style="text-align:center;padding:26px;color:var(--text-3)">Sin DUAs con los filtros aplicados.</td></tr>';
@@ -4555,6 +4611,7 @@ RENDERERS.aduana = function (patch) {
     $('#aduTbl').innerHTML = html;
     $$('#aduTbl [data-ver]').forEach(b => b.onclick = () => setView('movs', { q: b.dataset.ver }));
     $$('#aduTbl [data-estado]').forEach(b => b.onclick = () => openAduanaEstadoModal(b.dataset.estado));
+    $$('#aduTbl [data-docs]').forEach(b => b.onclick = () => openDuaDocsModal(b.dataset.docs));
   }
 };
 
@@ -4649,6 +4706,7 @@ RENDERERS.reportes = function (patch) {
   root.innerHTML =
     viewHead('Reportes de rotación y ocupación', 'Analizá los movimientos de un período (ingresos, egresos y ajustes) con desglose por producto, cliente y posición, más la foto actual de ocupación. Exportá a CSV o imprimí en PDF.',
       '<button class="btn" id="repCsv">' + ICONS.download + ' CSV del período</button>' +
+      '<button class="btn" id="repMail">' + ICONS.mail + ' Enviar por correo</button>' +
       '<button class="btn" id="repPrint">' + ICONS.print + ' Imprimir / PDF</button>') +
     '<div class="filterbar">' +
       '<label style="font-size:12px;font-weight:700;color:var(--text-2)">Desde <input type="date" id="repDesde" value="' + esc(REP_F.desde) + '"></label>' +
@@ -4728,6 +4786,7 @@ RENDERERS.reportes = function (patch) {
     $('#repCsv').onclick = () => {
       descargarCSV('reporte_periodo_' + todayISO() + '.csv', ['Producto', 'Cajas ingresadas', 'Cajas egresadas', 'Neto'], prodRows.map(([p, v]) => [p, v.ing, v.egr, v.neto]));
     };
+    $('#repMail').onclick = () => emailReportePeriodo(REP_F.desde, REP_F.hasta);
     $('#repPrint').onclick = () => {
       imprimirHTML('Reporte de rotación y ocupación · ' + perLabel,
         '<h2 style="margin:10px 0 6px">Resumen del período</h2>' +
@@ -5739,6 +5798,7 @@ function renderSettingsModal() {
     sub: 'Roles de usuario, PIN de administrador y respaldos automáticos previos a cada importación.',
     size: 'wide',
     body:
+      (typeof googleSettingsSectionHTML === 'function' ? googleSettingsSectionHTML() : '') +
       '<div class="form-section">Rol actual</div>' +
       '<div class="alert ' + (esAdmin() ? 'info' : 'warn') + '">' + ICONS.shield + '<div><b>Rol actual: ' + (esAdmin() ? 'Administrador' : 'Operario') + '.</b> ' +
         'El <b>operario</b> carga movimientos, traslados y carga rápida, consulta todo y exporta. El <b>administrador</b> además edita/anula/elimina movimientos, gestiona clientes, productos, reservas, conteos, aduana, importaciones y configuración.' +
@@ -5759,6 +5819,7 @@ function renderSettingsModal() {
     foot: '<button class="btn" id="cfCancel">Cerrar</button><button class="btn primary" id="cfSave">Guardar cambios</button>',
     onOpen() {
       $('#cfCancel').onclick = closeModal;
+      if (typeof bindGoogleSettings === 'function') bindGoogleSettings();
       const pinDel = $('#cf-pinDel');
       if (pinDel) pinDel.onclick = async () => {
         const ok = await confirmDialog({ title: 'Quitar PIN', html: 'Se eliminará el PIN de administrador. El cambio de rol quedará sin protección.', yes: 'Quitar PIN', danger: true });
@@ -6121,8 +6182,7 @@ function dateCell(iso) { // fecha como celda de fecha real (sin desfase horario)
   return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
 }
 
-function exportarXLSX() {
-  if (dbIsEmpty()) { toast('No hay datos para exportar', 'warn'); return; }
+function buildWorkbook() {
   const k = kpis();
   const wb = XLSX.utils.book_new();
 
@@ -6250,7 +6310,17 @@ function exportarXLSX() {
   const pvr = XLSX.utils.decode_range(wsPv['!ref']);
   for (let r = 2; r <= pvr.e.r; r++) { const c = wsPv['D' + (r + 1)]; if (c && typeof c.v === 'number') c.z = 'dd/mm/yyyy'; }
   XLSX.utils.book_append_sheet(wb, wsPv, 'PALLETS VACIOS');
+  return wb;
+}
 
+/* Bytes del libro (para subir a Google Drive o adjuntar por correo) */
+function workbookBytes(wb) {
+  return XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellDates: true });
+}
+
+function exportarXLSX() {
+  if (dbIsEmpty()) { toast('No hay datos para exportar', 'warn'); return; }
+  const wb = buildWorkbook();
   const name = 'Control_Stock_Deposito_Fiscal_' + todayISO() + '.xlsx';
   XLSX.writeFile(wb, name, { cellDates: true });
   toast('Excel exportado', 'ok', name + ' · 8 pestañas actualizadas');
@@ -6266,6 +6336,18 @@ function backupJSON() {
   URL.revokeObjectURL(a.href);
   toast('Respaldo descargado', 'ok', a.download);
 }
+/* ---------- Restauración desde objeto de respaldo (JSON local o Drive) ---------- */
+function restaurarDataObj(data, label) {
+  crearSnapshot('Pre-restauración · ' + label);
+  const conf = DB.config, snaps = DB.snapshots;
+  DB = Object.assign(emptyDB(), data.db);
+  DB.config = conf; DB.snapshots = snaps; // conservar rol/PIN, respaldos y configuración actual
+  rebuildCoords((data.coords || []).concat(DB.movimientos.map(m => m.coordenada)));
+  invalidate(); saveDB();
+  auditar('Datos restaurados', label + ' · ' + fmtInt(DB.movimientos.length) + ' movimientos · ' + (DB.clientes || []).length + ' clientes');
+  $('#onboard').style.display = 'none';
+  renderNavCounts(); setView('panel');
+}
 async function restoreJSON(file) {
   try {
     const data = JSON.parse(await file.text());
@@ -6279,19 +6361,1117 @@ async function restoreJSON(file) {
     });
     if (!ok) return;
     if (!esAdmin()) { toast('Solo un administrador puede restaurar respaldos', 'warn'); return; }
-    crearSnapshot('Pre-restauración de respaldo JSON');
-    const conf = DB.config, snaps = DB.snapshots;
-    DB = Object.assign(emptyDB(), data.db);
-    DB.config = conf; DB.snapshots = snaps; // conservar rol/PIN y respaldos actuales
-    rebuildCoords((data.coords || []).concat(DB.movimientos.map(m => m.coordenada)));
-    invalidate(); saveDB();
-    auditar('Respaldo JSON restaurado', fmtInt(DB.movimientos.length) + ' movimientos · del ' + (data.exportado || '—'));
-    $('#onboard').style.display = 'none';
-    renderNavCounts(); setView('panel');
+    restaurarDataObj(data, 'Respaldo JSON del ' + (data.exportado || '—'));
     toast('Respaldo restaurado', 'ok', 'Se conservó el rol y los snapshots actuales.');
   } catch (e) {
     toast('No se pudo restaurar', 'error', e.message);
   }
+}
+
+</script>
+<script>
+/* ============================================================
+   GOOGLE · Núcleo de sincronización (OAuth2, Drive, Gmail) y PDF
+   Arquitectura monousuario: cuenta del depósito frimaraldap1914@gmail.com
+   100% client-side: sin backend, la API REST de Google se consume
+   directamente desde el navegador con el token OAuth de sesión.
+   ============================================================ */
+'use strict';
+
+/* ---------- Constantes de la cuenta y las carpetas de Drive ---------- */
+const GOOGLE_HINT_DEFAULT = 'frimaraldap1914@gmail.com';
+const DRIVE_FOLDER = 'WMS_DAP1914';
+const DRIVE_DB_NAME = 'WMS_DAP1914_DB.xlsx';
+const DRIVE_JSON_NAME = 'WMS_DAP1914_estado.json';
+const DRIVE_SUB_RESPALDOS = 'Respaldos';
+const DRIVE_SUB_DOCS = 'Documentacion_DUAs';
+const DRIVE_BACKUPS_MAX = 15;
+const G_MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const G_MIME_PDF = 'application/pdf';
+/* drive.file: solo archivos creados por esta app · gmail.send: solo envío · userinfo.email: identificar la cuenta */
+const G_SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email';
+
+/* ---------- Estado volátil de la sesión (no se persiste el token) ---------- */
+const GState = {
+  clientIdUsed: '', client: null, token: '', tokenExp: 0, email: '',
+  ids: { folder: null, respaldos: null, docs: null, db: null, json: null },
+};
+
+function gCfg() {
+  DB.config.google = Object.assign({ clientId: '', hint: GOOGLE_HINT_DEFAULT, autoSync: false, lastSyncAt: '', lastTo: '', ids: null }, DB.config.google || {});
+  return DB.config.google;
+}
+function gConnected() { return !!(GState.token && GState.email); }
+function gConfigured() { return !!gCfg().clientId; }
+function gOriginProblem() { return location.protocol === 'file:'; }
+
+/* ============================================================
+   OAUTH2 · Google Identity Services (client-side)
+   ============================================================ */
+let _gisLoading = null;
+function loadGis() {
+  if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
+  if (_gisLoading) return _gisLoading;
+  _gisLoading = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true;
+    s.onload = () => res();
+    s.onerror = () => { _gisLoading = null; rej(new Error('No se pudo cargar Google Identity Services. Verificá la conexión a internet.')); };
+    document.head.appendChild(s);
+  });
+  return _gisLoading;
+}
+
+let _tokenResolve = null;
+function ensureClient() {
+  const cfg = gCfg();
+  if (GState.client && GState.clientIdUsed === cfg.clientId) return;
+  GState.clientIdUsed = cfg.clientId;
+  GState.client = google.accounts.oauth2.initTokenClient({
+    client_id: cfg.clientId,
+    scope: G_SCOPES,
+    /* login_hint: agiliza el inicio de sesión con la cuenta del depósito */
+    login_hint: cfg.hint || GOOGLE_HINT_DEFAULT,
+    callback: resp => { const r = _tokenResolve; _tokenResolve = null; if (r) r(resp); },
+    error_callback: err => { const r = _tokenResolve; _tokenResolve = null; if (r) r({ error: (err && err.type) || 'error', error_description: (err && err.message) || 'No se pudo abrir la ventana de Google.' }); },
+  });
+}
+function requestToken(interactive) {
+  return new Promise((resolve, reject) => {
+    _tokenResolve = resp => { if (resp && resp.error) reject(new Error(resp.error_description || resp.error)); else resolve(resp); };
+    try { GState.client.requestAccessToken(interactive === false ? { prompt: '' } : {}); }
+    catch (e) { _tokenResolve = null; reject(e); }
+  });
+}
+async function gFetchEmail() {
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + GState.token } });
+    if (r.ok) { const j = await r.json(); GState.email = j.email || ''; }
+  } catch (e) { /* no crítico: la cuenta queda vacía */ }
+}
+async function gAuth(interactive) {
+  const cfg = gCfg();
+  if (!cfg.clientId) throw new Error('Falta configurar el Google Client ID. Andá a Configuración → Sincronización con Google.');
+  if (gOriginProblem()) throw new Error('Google no permite iniciar sesión abriendo el archivo localmente (file://). Abrí la app desde GitHub Pages o un servidor local — ver la guía en Configuración.');
+  await loadGis();
+  ensureClient();
+  if (GState.token && GState.tokenExp > Date.now()) return GState.token;
+  try {
+    const resp = await requestToken(interactive);
+    GState.token = resp.access_token || '';
+    const dur = (Number(resp.expires_in) || 3600) - 60;
+    GState.tokenExp = Date.now() + Math.max(60, dur) * 1000;
+    await gFetchEmail();
+    if (!GState.email) GState.email = cfg.hint || GOOGLE_HINT_DEFAULT;
+    if (typeof renderDriveButton === 'function') renderDriveButton();
+    return GState.token;
+  } catch (e) {
+    GState.token = ''; GState.email = ''; GState.tokenExp = 0;
+    if (typeof renderDriveButton === 'function') renderDriveButton();
+    throw e;
+  }
+}
+async function gSilentOrThrow() {
+  if (GState.token && GState.tokenExp > Date.now()) return GState.token;
+  return gAuth(false); /* renovación silenciosa con la sesión activa de Google */
+}
+async function gDisconnect() {
+  const tok = GState.token;
+  GState.token = ''; GState.email = ''; GState.tokenExp = 0;
+  GState.ids = { folder: null, respaldos: null, docs: null, db: null, json: null };
+  try { if (tok && window.google && google.accounts && google.accounts.oauth2) google.accounts.oauth2.revoke(tok, () => {}); } catch (e) { /* ignorar */ }
+  if (typeof renderDriveButton === 'function') renderDriveButton();
+  if (typeof renderCurrentViewSafe === 'function') renderCurrentViewSafe();
+}
+
+/* ============================================================
+   DRIVE · REST API v3 (fetch + Bearer)
+   ============================================================ */
+async function gfetch(url, opts, _retry) {
+  await gSilentOrThrow();
+  const res = await fetch(url, Object.assign({}, opts || {}, { headers: Object.assign({ Authorization: 'Bearer ' + GState.token }, (opts && opts.headers) || {}) }));
+  if (res.status === 401 && !_retry) { GState.token = ''; await gSilentOrThrow(); return gfetch(url, opts, true); }
+  if (!res.ok) {
+    let msg = 'Error HTTP ' + res.status;
+    try { const j = await res.json(); msg = (j.error && j.error.message) || msg; } catch (e) { /* sin cuerpo JSON */ }
+    const err = new Error(msg); err.status = res.status; throw err;
+  }
+  return res;
+}
+function gQuery(q, fields) {
+  const params = new URLSearchParams({
+    q, fields: fields || 'files(id,name,mimeType,modifiedTime,size,appProperties)', pageSize: '100',
+  });
+  return gfetch('https://www.googleapis.com/drive/v3/files?' + params.toString()).then(r => r.json());
+}
+const gEsc = s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+async function gEnsureFolder(name, parentId) {
+  const parent = parentId ? " and '" + parentId + "' in parents" : '';
+  const j = await gQuery("mimeType='application/vnd.google-apps.folder' and name='" + gEsc(name) + "' and trashed=false" + parent, 'files(id,name)');
+  if (j.files && j.files.length) return j.files[0].id;
+  const r = await gfetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+    body: JSON.stringify(Object.assign({ name: name, mimeType: 'application/vnd.google-apps.folder' }, parentId ? { parents: [parentId] } : {})),
+  }).then(x => x.json());
+  return r.id;
+}
+async function gEnsureTree(force) {
+  if (!force && GState.ids.folder && GState.ids.respaldos && GState.ids.docs) return GState.ids;
+  GState.ids.folder = await gEnsureFolder(DRIVE_FOLDER);
+  GState.ids.respaldos = await gEnsureFolder(DRIVE_SUB_RESPALDOS, GState.ids.folder);
+  GState.ids.docs = await gEnsureFolder(DRIVE_SUB_DOCS, GState.ids.folder);
+  return GState.ids;
+}
+async function gFindIn(parentId, name, fields) {
+  const j = await gQuery("name='" + gEsc(name) + "' and '" + parentId + "' in parents and trashed=false", fields || 'files(id,name,modifiedTime,size)');
+  return (j.files || [])[0] || null;
+}
+async function gUploadBytes(name, mime, bytes, parentId, fileId, props) {
+  const boundary = 'wms_dap1914_' + Date.now().toString(36);
+  const meta = Object.assign({ name: name }, parentId && !fileId ? { parents: [parentId] } : {}, props ? { appProperties: props } : {});
+  const head = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta) +
+    '\r\n--' + boundary + '\r\nContent-Type: ' + mime + '\r\n\r\n';
+  const body = new Blob([head, bytes, '\r\n--' + boundary + '--'], { type: 'multipart/related; boundary=' + boundary });
+  const url = fileId
+    ? 'https://www.googleapis.com/upload/drive/v3/files/' + encodeURIComponent(fileId) + '?uploadType=multipart&fields=id,modifiedTime'
+    : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime';
+  const r = await gfetch(url, { method: fileId ? 'PATCH' : 'POST', body: body });
+  return r.json();
+}
+async function gDownloadBytes(fileId) {
+  const r = await gfetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) + '?alt=media');
+  return new Uint8Array(await r.arrayBuffer());
+}
+async function gTrash(fileId) {
+  await gfetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: JSON.stringify({ trashed: true }),
+  });
+}
+
+/* ---------- Guardar / respaldar / descargar ---------- */
+function gStamp() {
+  const d = new Date();
+  return todayISO().replace(/-/g, '') + '_' + pad2(d.getHours()) + pad2(d.getMinutes());
+}
+async function gPruneBackups() {
+  const j = await gQuery("'" + GState.ids.respaldos + "' in parents and trashed=false", 'files(id,name)');
+  const files = (j.files || []).sort((a, b) => (b.name || '').localeCompare(a.name || ''));
+  for (let i = DRIVE_BACKUPS_MAX; i < files.length; i++) await gTrash(files[i].id);
+}
+async function driveSaveNow(opts) {
+  const o = Object.assign({ backup: false, silent: false }, opts || {});
+  if (dbIsEmpty()) { if (!o.silent) toast('No hay datos para guardar todavía', 'warn'); return false; }
+  await gAuth(false);
+  await gEnsureTree();
+  /* Maestro .xlsx (las pestañas del sistema) */
+  const xbytes = workbookBytes(buildWorkbook());
+  const dbf = GState.ids.db ? { id: GState.ids.db } : await gFindIn(GState.ids.folder, DRIVE_DB_NAME, 'files(id)');
+  const up1 = await gUploadBytes(DRIVE_DB_NAME, G_MIME_XLSX, xbytes, GState.ids.folder, dbf && dbf.id);
+  GState.ids.db = up1.id;
+  /* Estado completo JSON (reservas, aduana, auditoría…) para fidelidad total entre dispositivos */
+  const payload = { app: 'WMS-Deposito-Fiscal', version: 2, exportado: new Date().toISOString(), coords: COORDS, db: DB };
+  const jbytes = new TextEncoder().encode(JSON.stringify(payload));
+  const jf = GState.ids.json ? { id: GState.ids.json } : await gFindIn(GState.ids.folder, DRIVE_JSON_NAME, 'files(id)');
+  const up2 = await gUploadBytes(DRIVE_JSON_NAME, 'application/json', jbytes, GState.ids.folder, jf && jf.id);
+  GState.ids.json = up2.id;
+  if (o.backup) {
+    await gUploadBytes('WMS_DAP1914_DB_' + gStamp() + '.xlsx', G_MIME_XLSX, xbytes, GState.ids.respaldos);
+    await gPruneBackups();
+  }
+  const cfg = gCfg();
+  cfg.lastSyncAt = new Date().toISOString();
+  cfg.ids = { folder: GState.ids.folder, db: GState.ids.db, json: GState.ids.json };
+  saveDB();
+  auditar('Sincronización con Drive', 'Guardado en Google Drive' + (o.backup ? ' + respaldo fechado' : '') + ' · ' + fmtInt(DB.movimientos.length) + ' movimientos');
+  if (!o.silent) {
+    toast('Guardado en Google Drive', 'ok', DRIVE_FOLDER + ' → ' + DRIVE_DB_NAME + (o.backup ? ' + respaldo en ' + DRIVE_SUB_RESPALDOS + '/' : ''));
+    if (typeof renderCurrentViewSafe === 'function') renderCurrentViewSafe();
+  }
+  return true;
+}
+async function driveInfo() {
+  await gAuth(false);
+  await gEnsureTree();
+  return { db: await gFindIn(GState.ids.folder, DRIVE_DB_NAME), json: await gFindIn(GState.ids.folder, DRIVE_JSON_NAME) };
+}
+async function driveDownloadNow() {
+  await gAuth(false);
+  await gEnsureTree();
+  /* 1) Preferir el estado JSON completo (fidelidad total entre dispositivos) */
+  const jf = await gFindIn(GState.ids.folder, DRIVE_JSON_NAME);
+  if (jf) {
+    let data = null;
+    try { data = JSON.parse(new TextDecoder().decode(await gDownloadBytes(jf.id))); } catch (e) { data = null; }
+    if (data && data.db && Array.isArray(data.db.movimientos)) {
+      const ok = await confirmDialog({
+        title: 'Descargar desde Drive',
+        html: 'Se reemplazarán los datos de este navegador por el estado guardado en Google Drive' +
+          ' (<b>' + fmtInt(data.db.movimientos.length) + ' movimientos</b> al ' + esc(fmtDateTime(jf.modifiedTime || data.exportado)) + ').<br>Antes de aplicar se crea una copia de respaldo (snapshot) local.',
+        yes: 'Descargar y reemplazar', danger: true,
+      });
+      if (!ok) return false;
+      if (!esAdmin()) { toast('Solo un administrador puede reemplazar los datos', 'warn'); return false; }
+      restaurarDataObj(data, 'Descarga desde Drive · ' + fmtDateTime(jf.modifiedTime || data.exportado));
+      gCfg().lastSyncAt = new Date().toISOString(); saveDB();
+      if (typeof renderCurrentViewSafe === 'function') renderCurrentViewSafe();
+      toast('Datos descargados desde Drive', 'ok', fmtInt(DB.movimientos.length) + ' movimientos · ' + DB.clientes.length + ' clientes · ' + DB.productos.length + ' SKUs');
+      return true;
+    }
+  }
+  /* 2) Fallback: el maestro .xlsx (misma ruta que importar) */
+  const dbf = await gFindIn(GState.ids.folder, DRIVE_DB_NAME);
+  if (!dbf) throw new Error('No se encontró "' + DRIVE_DB_NAME + '" dentro de la carpeta "' + DRIVE_FOLDER + '" de Google Drive. Guardá primero desde esta app.');
+  const bytes = await gDownloadBytes(dbf.id);
+  const parsed = parseWorkbook(bytes.buffer ? bytes : new Uint8Array(bytes));
+  if (!parsed.movs.length && !parsed.clientes.length && !parsed.pallets.length) throw new Error('El archivo de Drive no contiene datos legibles.');
+  const ok = await confirmDialog({
+    title: 'Descargar desde Drive',
+    html: 'Se reemplazarán los datos de este navegador por el Excel maestro de Drive' +
+      ' (<b>' + fmtInt(parsed.movs.length) + ' movimientos</b> guardado el ' + esc(fmtDateTime(dbf.modifiedTime || '')) + ').<br>Antes de aplicar se crea una copia de respaldo (snapshot) local.',
+    yes: 'Descargar y reemplazar', danger: true,
+  });
+  if (!ok) return false;
+  if (!esAdmin()) { toast('Solo un administrador puede reemplazar los datos', 'warn'); return false; }
+  crearSnapshot('Pre-descarga desde Drive');
+  aplicarImportacion(parsed, 'replace');
+  auditar('Descarga desde Drive', fmtInt(parsed.movs.length) + ' movimientos · Excel maestro');
+  gCfg().lastSyncAt = new Date().toISOString(); saveDB();
+  renderNavCounts(); setView('panel');
+  if (typeof renderCurrentViewSafe === 'function') renderCurrentViewSafe();
+  toast('Datos descargados desde Drive', 'ok', fmtInt(DB.movimientos.length) + ' movimientos · catálogo: ' + DB.productos.length + ' SKUs');
+  return true;
+}
+
+/* ---------- Documentación aduanera (PDFs por DUA) ---------- */
+async function driveUploadDoc(dua, file) {
+  await gAuth(false);
+  await gEnsureTree();
+  const safeDua = String(dua || 'SIN_DUA').replace(/[^\w.-]+/g, '_');
+  const safeName = String(file.name || 'documento.pdf').replace(/[^\w.\- ]+/g, '_');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const name = 'DUA_' + safeDua + '_' + safeName;
+  const meta = await gUploadBytes(name, file.type || G_MIME_PDF, bytes, GState.ids.docs, null, { dua: String(dua || ''), subido: todayISO() });
+  auditar('Documento subido a Drive', name + ' · ' + Math.ceil(bytes.length / 1024) + ' KB');
+  return meta;
+}
+async function driveListDocs(dua) {
+  await gAuth(false);
+  await gEnsureTree();
+  const j = await gQuery("'" + GState.ids.docs + "' in parents and trashed=false", 'files(id,name,mimeType,size,modifiedTime,appProperties)');
+  const files = j.files || [];
+  const list = dua ? files.filter(f => f.appProperties && f.appProperties.dua === String(dua)) : files;
+  return list.sort((a, b) => (b.modifiedTime || '').localeCompare(a.modifiedTime || ''));
+}
+function downloadBytesAs(bytes, filename, mime) {
+  const blob = new Blob([bytes], { type: mime || 'application/octet-stream' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
+
+/* ============================================================
+   GMAIL · envío de correos con adjuntos (MIME + base64url)
+   ============================================================ */
+function utf8(s) { return new TextEncoder().encode(String(s)); }
+function b64std(input) {
+  const bytes = typeof input === 'string' ? utf8(input) : input;
+  if (typeof btoa === 'function') {
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  return Buffer.from(bytes).toString('base64'); /* entorno de pruebas (Node) */
+}
+function b64url(input) { return b64std(input).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function chunk76(s) { return (String(s).match(/.{1,76}/g) || []).join('\r\n'); }
+function rfc2047(s) { return '=?UTF-8?B?' + b64std(s) + '?='; }
+
+function mimeBuild(o) {
+  const B = '=_wms_dap1914_' + Date.now().toString(36);
+  const subject = /[^\x00-\x7F]/.test(o.subject || '') ? rfc2047(o.subject) : (o.subject || '');
+  const lines = [
+    'To: ' + String(o.to || '').replace(/[^\x20-\x7E]/g, ''),
+    'Subject: ' + subject,
+    'MIME-Version: 1.0',
+    'Content-Type: multipart/mixed; boundary="' + B + '"',
+    '',
+    '--' + B,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    chunk76(b64std(o.body || '')),
+    '',
+  ];
+  for (const a of o.attachments || []) {
+    const fname = String(a.filename || 'archivo');
+    const ascii = fname.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
+    const ext = ascii !== fname ? "; filename*=UTF-8''" + encodeURIComponent(fname) : '';
+    lines.push('--' + B,
+      'Content-Type: ' + (a.mime || 'application/octet-stream') + '; name="' + ascii + '"',
+      'Content-Disposition: attachment; filename="' + ascii + '"' + ext,
+      'Content-Transfer-Encoding: base64',
+      '',
+      chunk76(b64std(a.bytes || new Uint8Array())),
+      '');
+  }
+  lines.push('--' + B + '--');
+  return utf8(lines.join('\r\n'));
+}
+async function gmailSend(to, subject, body, attachments) {
+  await gAuth(false);
+  const raw = b64url(mimeBuild({ to, subject, body, attachments }));
+  const r = await gfetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+    body: JSON.stringify({ raw: raw }),
+  });
+  return r.json(); /* { id, threadId } */
+}
+
+/* ============================================================
+   PDF · generador mínimo (PDF 1.4, fuentes estándar, WinAnsi)
+   ============================================================ */
+const PDF_WIN = { 0x20AC:0x80, 0x201A:0x82, 0x0192:0x83, 0x201E:0x84, 0x2026:0x85, 0x2020:0x86, 0x2021:0x87, 0x02C6:0x88, 0x2030:0x89, 0x0160:0x8A, 0x2039:0x8B, 0x0152:0x8C, 0x017D:0x8E, 0x2018:0x91, 0x2019:0x92, 0x201C:0x93, 0x201D:0x94, 0x2022:0x95, 0x2013:0x96, 0x2014:0x97, 0x02DC:0x98, 0x2122:0x99, 0x0161:0x9A, 0x203A:0x9B, 0x0153:0x9C, 0x017E:0x9E, 0x0178:0x9F };
+function pdfSan(s) {
+  let out = '';
+  const str = String(s == null ? '' : s);
+  for (const ch of str) {
+    const c = ch.codePointAt(0);
+    if (c === 0x2212 || c === 0x2013 || c === 0x2014) out += '-';           /* − – — */
+    else if (c === 0x2192) out += '->';
+    else if (c === 0x2190 || c === 0x21A9) out += '<-';
+    else if (c === 0x2691) out += '#';
+    else if (c === 0x2195) out += '|';
+    else if (c === 0x00D7 || c === 0x00B7) out += ch;                        /* × · (latin1) */
+    else if (c < 256) out += ch;
+    else if (PDF_WIN[c] != null) out += String.fromCharCode(PDF_WIN[c]);
+    else out += '?';
+  }
+  return out;
+}
+function pdfEsc(s) { return pdfSan(s).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)'); }
+function pdfTextWidth(f, size, s) {
+  const t = pdfSan(s);
+  if (f === 'F3' || f === 'F4') return t.length * 0.6 * size; /* Courier: monoespaciada */
+  let w = 0;
+  for (const ch of t) {
+    const c = ch.charCodeAt(0);
+    w += (c === 32 || c === 105 || c === 108 || c === 116 || c === 106 || c === 102 || c === 46 || c === 44 || c === 39) ? 0.28
+      : ((c >= 48 && c <= 57) || (c >= 65 && c <= 90)) ? 0.66
+      : (c === 109 || c === 77 || c === 87) ? 0.86
+      : (c >= 97 && c <= 122) ? 0.52 : 0.55;
+  }
+  return w * size;
+}
+function pdfDoc(opts) {
+  const o = Object.assign({ title: 'Documento WMS DAP1914' }, opts || {});
+  const W = 595, H = 842, M = 48;
+  const pages = [];
+  let ops = [];
+  let y = H - M;
+  const doc = {
+    W, H, M, CW: W - 2 * M,
+    get y() { return y; }, set y(v) { y = v; },
+    get roomLeft() { return y - M; },
+    newPage() { pages.push(ops); ops = []; y = H - M; },
+    text(x, yy, f, size, s, color) {
+      const c = color || [0.11, 0.13, 0.17];
+      ops.push(c[0].toFixed(3) + ' ' + c[1].toFixed(3) + ' ' + c[2].toFixed(3) + ' rg BT /' + f + ' ' + (+size).toFixed(1) + ' Tf 1 0 0 1 ' + (+x).toFixed(1) + ' ' + (+yy).toFixed(1) + ' Tm (' + pdfEsc(s) + ') Tj ET');
+    },
+    textR(xRight, yy, f, size, s, color) { doc.text(xRight - pdfTextWidth(f, size, s), yy, f, size, s, color); },
+    textC(xc, yy, f, size, s, color) { doc.text(xc - pdfTextWidth(f, size, s) / 2, yy, f, size, s, color); },
+    line(x1, y1, x2, y2, color, w) {
+      const c = color || [0.78, 0.8, 0.84];
+      ops.push(c[0] + ' ' + c[1] + ' ' + c[2] + ' RG ' + (w || 0.8) + ' w ' + (+x1).toFixed(1) + ' ' + (+y1).toFixed(1) + ' m ' + (+x2).toFixed(1) + ' ' + (+y2).toFixed(1) + ' l S');
+    },
+    rect(x, yy, w, h, fill, stroke, lw) {
+      if (fill) ops.push(fill[0] + ' ' + fill[1] + ' ' + fill[2] + ' rg');
+      if (stroke) ops.push(stroke[0] + ' ' + stroke[1] + ' ' + stroke[2] + ' RG ' + (lw || 0.8) + ' w');
+      ops.push((+x).toFixed(1) + ' ' + (+yy).toFixed(1) + ' ' + (+w).toFixed(1) + ' ' + (+h).toFixed(1) + ' re ' + (fill && stroke ? 'B' : fill ? 'f' : 'S'));
+    },
+    ensure(h) { if (y - h < M) doc.newPage(); },
+    build() { if (ops.length || !pages.length) pages.push(ops); ops = []; return pdfBuild(pages, o.title); },
+  };
+  return doc;
+}
+function pdfBuild(pages, title) {
+  const nP = pages.length;
+  const pageBase = 7;                 /* objetos 7..(7+2nP-1): página + contenido */
+  const infoId = pageBase + 2 * nP;   /* objeto Info */
+  const kids = pages.map((_, i) => (pageBase + 2 * i) + ' 0 R').join(' ');
+  let out = '%PDF-1.4\n';
+  const off = [];
+  off[1] = out.length; out += '1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n';
+  off[2] = out.length; out += '2 0 obj\n<</Type/Pages/Count ' + nP + '/Kids[' + kids + ']>>\nendobj\n';
+  const fonts = [
+    [3, 'Helvetica'], [4, 'Helvetica-Bold'], [5, 'Courier'], [6, 'Courier-Bold'],
+  ];
+  for (const [id, base] of fonts) {
+    off[id] = out.length;
+    out += id + ' 0 obj\n<</Type/Font/Subtype/Type1/BaseFont/' + base + '/Encoding/WinAnsiEncoding>>\nendobj\n';
+  }
+  pages.forEach((pops, i) => {
+    const pid = pageBase + 2 * i, cid = pid + 1;
+    const stream = pops.join('\n');
+    off[pid] = out.length;
+    out += pid + ' 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Resources<</Font<</F1 3 0 R/F2 4 0 R/F3 5 0 R/F4 6 0 R>>>>/Contents ' + cid + ' 0 R>>\nendobj\n';
+    off[cid] = out.length;
+    out += cid + ' 0 obj\n<</Length ' + stream.length + '>>\nstream\n' + stream + '\nendstream\nendobj\n';
+  });
+  off[infoId] = out.length;
+  out += infoId + ' 0 obj\n<</Title(' + pdfEsc(title) + ')/Producer(WMS DAP1914)/CreationDate(D:' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14) + 'Z)>>\nendobj\n';
+  const total = infoId;
+  const xrefPos = out.length;
+  out += 'xref\n0 ' + (total + 1) + '\n0000000000 65535 f \n';
+  for (let i = 1; i <= total; i++) out += String(off[i]).padStart(10, '0') + ' 00000 n \n';
+  out += 'trailer\n<</Size ' + (total + 1) + '/Root 1 0 R/Info ' + infoId + ' 0 R>>\nstartxref\n' + xrefPos + '\n%%EOF';
+  const bytes = new Uint8Array(out.length);
+  for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 0xFF;
+  return bytes;
+}
+
+/* ---------- Tabla PDF con paginación automática ---------- */
+function pdfTabla(doc, cols, rows, opts) {
+  const o = Object.assign({ headFill: [0.05, 0.36, 0.68], headText: [1, 1, 1], zebra: [0.955, 0.965, 0.98], rowH: 15.5, font: 'F3', size: 8.2 }, opts || {});
+  const totalW = cols.reduce((a, c) => a + c.w, 0);
+  const drawHead = () => {
+    doc.rect(doc.M, doc.y - 13.5, totalW, 15.5, o.headFill);
+    let x = doc.M;
+    for (const c of cols) {
+      if (c.align === 'R') doc.textR(x + c.w - 5, doc.y - 2.5, 'F2', 8.2, c.t, o.headText);
+      else doc.text(x + 5, doc.y - 2.5, 'F2', 8.2, c.t, o.headText);
+      x += c.w;
+    }
+    doc.y -= 16.5;
+  };
+  drawHead();
+  rows.forEach((r, ri) => {
+    doc.ensure(o.rowH + 4);
+    if (doc.y === doc.H - doc.M) drawHead(); /* página nueva: repetir encabezado */
+    if (ri % 2 === 1) doc.rect(doc.M, doc.y - o.rowH + 3.5, totalW, o.rowH, o.zebra);
+    let x = doc.M;
+    r.forEach((cell, ci) => {
+      const c = cols[ci] || {};
+      const maxChars = Math.max(4, Math.floor((c.w - 10) / (0.6 * o.size)));
+      const val = pdfClip(String(cell == null ? '' : cell), maxChars);
+      if (c.align === 'R') doc.textR(x + c.w - 5, doc.y - 2, c.f || o.font, c.size || o.size, val, c.color);
+      else doc.text(x + 5, doc.y - 2, c.f || o.font, c.size || o.size, val, c.color);
+      x += c.w;
+    });
+    doc.y -= o.rowH;
+  });
+  doc.line(doc.M, doc.y + 3.5, doc.M + totalW, doc.y + 3.5, [0.05, 0.36, 0.68], 1.2);
+}
+function pdfClip(s, max) { return s.length > max ? s.slice(0, max - 1) + '~' : s; }
+
+/* ---------- Encabezado y pie comunes ---------- */
+function pdfHead(doc, titulo, sub) {
+  doc.rect(doc.M, doc.H - doc.M - 42, doc.CW, 42, [0.05, 0.36, 0.68]);
+  doc.text(doc.M + 12, doc.H - doc.M - 15, 'F2', 12.5, 'WMS · CONTROL OPERATIVO DE DEPÓSITO FISCAL — DAP1914', [1, 1, 1]);
+  doc.text(doc.M + 12, doc.H - doc.M - 29, 'F1', 8, sub || 'Generado por la aplicación WMS · Depósito Fiscal DAP1914', [0.84, 0.9, 0.97]);
+  doc.y = doc.H - doc.M - 60;
+  doc.text(doc.M, doc.y + 4, 'F2', 14, titulo, [0.08, 0.2, 0.38]);
+  doc.y -= 10;
+  doc.line(doc.M, doc.y, doc.M + doc.CW, doc.y, [0.05, 0.36, 0.68], 1.6);
+  doc.y -= 14;
+}
+function pdfStampStr() { return fmtDate(todayISO()) + ' ' + pad2(new Date().getHours()) + ':' + pad2(new Date().getMinutes()); }
+
+/* ---------- Comprobante de ingreso/egreso (PDF) ---------- */
+function pdfComprobante(mov) {
+  const doc = pdfDoc({ title: 'Comprobante de ' + (mov.tipo || 'movimiento') });
+  pdfHead(doc, 'COMPROBANTE DE ' + String(mov.tipo || 'MOVIMIENTO').toUpperCase() + ' DE DEPÓSITO FISCAL',
+    'Comprobante generado por la aplicación · ' + pdfStampStr());
+  const filas = [
+    ['Fecha', fmtDate(mov.fecha)], ['Tipo de movimiento', mov.tipo || '-'],
+    ['N.º stock', mov.nroStock || '0'], ['Cliente', mov.cliente || '-'],
+    ['Contenedor', mov.contenedor && mov.contenedor !== '0' ? mov.contenedor : '-'], ['DUA', mov.dua || '-'],
+    ['Producto', mov.producto || '-'], ['Medida', mov.medida || '-'],
+    ['Coordenada', mov.coordenada || '-'], ['Cantidad (cajas)', fmtInt(mov.cantidad)],
+    ['Ref. / documento', mov.refDoc || '-'], ['Impacto stock', (impactoDe(mov) > 0 ? '+' : '') + fmtInt(impactoDe(mov))],
+  ];
+  const colL = 170, colV = doc.CW - colL;
+  filas.forEach((f, i) => {
+    if (i % 2 === 1) doc.rect(doc.M, doc.y - 12.5, doc.CW, 16, [0.965, 0.97, 0.98]);
+    doc.text(doc.M + 8, doc.y - 1, 'F2', 9, f[0], [0.3, 0.35, 0.42]);
+    doc.text(doc.M + colL + 8, doc.y - 1, 'F3', 9, f[1]);
+    doc.y -= 16;
+  });
+  doc.rect(doc.M, doc.y - 12.5, doc.CW, 16, null, [0.05, 0.36, 0.68], 0.9);
+  doc.y -= 34;
+  if (mov.obs) {
+    doc.text(doc.M, doc.y, 'F2', 9, 'Observaciones:', [0.3, 0.35, 0.42]);
+    doc.y -= 13;
+    doc.text(doc.M + 8, doc.y, 'F3', 8.5, mov.obs.length > 110 ? mov.obs.slice(0, 109) + '~' : mov.obs);
+    doc.y -= 20;
+  }
+  doc.text(doc.M, doc.y, 'F1', 8.5, 'Registrado por: ' + (esAdmin() ? 'Administrador' : 'Operario') + ' · Documento generado por el WMS DAP1914', [0.45, 0.48, 0.55]);
+  doc.y -= 90;
+  doc.ensure(46);
+  const half = doc.CW / 2;
+  doc.line(doc.M + 10, doc.y + 34, doc.M + 10 + half - 50, doc.y + 34, [0.35, 0.38, 0.44], 0.9);
+  doc.line(doc.M + half + 40, doc.y + 34, doc.M + doc.CW - 10, doc.y + 34, [0.35, 0.38, 0.44], 0.9);
+  doc.text(doc.M + 10, doc.y + 24, 'F1', 8.5, 'Operario', [0.45, 0.48, 0.55]);
+  doc.text(doc.M + half + 40, doc.y + 24, 'F1', 8.5, 'Conforme / Chofer', [0.45, 0.48, 0.55]);
+  doc.text(doc.M, doc.M - 24 + 6, 'F1', 7.5, 'WMS DAP1914 · Comprobante emitido el ' + pdfStampStr() + ' · Página 1 de 1', [0.55, 0.58, 0.64]);
+  return doc.build();
+}
+
+/* ---------- Reporte de stock filtrado (por cliente o DUA) ---------- */
+function pdfStockFiltro(titulo, sub, lineas) {
+  const doc = pdfDoc({ title: titulo });
+  pdfHead(doc, titulo, sub);
+  const conSaldo = lineas.filter(l => l.stock > 0);
+  const cols = [
+    { t: 'N.º stock', w: 62 }, { t: 'Cliente', w: 92 }, { t: 'Producto', w: 178 },
+    { t: 'Medida', w: 66 }, { t: 'Coord.', w: 52 }, { t: 'Cajas', w: 49, align: 'R' },
+  ];
+  const rows = conSaldo.map(l => [l.nroStock, l.cliente || '-', l.producto || '-', l.medida || '-', l.coordenada, fmtInt(l.stock)]);
+  pdfTabla(doc, cols, rows);
+  doc.y -= 8;
+  const total = conSaldo.reduce((a, l) => a + l.stock, 0);
+  doc.text(doc.M, doc.y, 'F2', 10, 'TOTAL: ' + fmtInt(total) + ' cajas en ' + conSaldo.length + ' líneas de inventario', [0.08, 0.2, 0.38]);
+  doc.y -= 14;
+  doc.text(doc.M, doc.y, 'F1', 8, 'Generado el ' + pdfStampStr() + ' · WMS Depósito Fiscal DAP1914', [0.55, 0.58, 0.64]);
+  return doc.build();
+}
+function pdfStockPorCliente(cliente) {
+  const lineas = lineasInventarioCache().filter(l => (l.cliente || '') === cliente);
+  return pdfStockFiltro('STOCK ACTUAL POR CLIENTE · ' + cliente.toUpperCase(), 'Resumen de inventario vigente del cliente en el depósito fiscal · ' + pdfStampStr(), lineas);
+}
+function pdfStockPorDUA(dua) {
+  const lineas = lineasInventarioCache().filter(l =>
+    DB.movimientos.some(m => m.dua === String(dua) && normCoord(m.coordenada) === l.coordenada && normKey(m.producto) === normKey(l.producto) && normKey(m.medida || '0') === normKey(l.medida || '0')));
+  return pdfStockFiltro('STOCK ASOCIADO AL DUA ' + String(dua).toUpperCase(), 'Mercadería ingresada bajo ese DUA que permanece en el depósito · ' + pdfStampStr(), lineas);
+}
+
+/* ---------- Reporte de período (rotación y ocupación) ---------- */
+function pdfReportePeriodo(desde, hasta) {
+  const doc = pdfDoc({ title: 'Reporte de período' });
+  const per = (desde || hasta) ? fmtDate(desde || 'inicio') + ' a ' + fmtDate(hasta || 'hoy') : 'Todo el histórico';
+  pdfHead(doc, 'REPORTE DE ROTACIÓN Y OCUPACIÓN · ' + per.toUpperCase(), 'Movimientos del período con desglose por producto, cliente y ocupación · ' + pdfStampStr());
+  const movs = DB.movimientos.filter(m => (!desde || (m.fecha || '') >= desde) && (!hasta || (m.fecha || '') <= hasta));
+  let ing = 0, egr = 0;
+  for (const m of movs) { const i = impactoDe(m); if (i > 0) ing += i; else egr += -i; }
+  const porProd = new Map(), porCli = new Map();
+  for (const m of movs) {
+    const imp = impactoDe(m);
+    const pp = porProd.get(m.producto || '-') || { ing: 0, egr: 0, neto: 0 };
+    const pc = porCli.get(m.cliente || '-') || { ing: 0, egr: 0, neto: 0, n: 0 };
+    if (imp > 0) { pp.ing += imp; pc.ing += imp; } else { pp.egr += -imp; pc.egr += -imp; }
+    pp.neto += imp; pc.neto += imp; pc.n++;
+    porProd.set(m.producto || '-', pp); porCli.set(m.cliente || '-', pc);
+  }
+  const k = kpis();
+  doc.text(doc.M, doc.y, 'F2', 10, 'Resumen del período', [0.08, 0.2, 0.38]);
+  doc.y -= 6;
+  pdfTabla(doc, [
+    { t: 'Movimientos', w: 120 }, { t: 'Ingresadas', w: 110, align: 'R' }, { t: 'Egresadas', w: 110, align: 'R' }, { t: 'Rotación neta', w: 105, align: 'R' },
+  ], [[fmtInt(movs.length), '+' + fmtInt(ing), '-' + fmtInt(egr), ing ? fmtPct(egr / ing, 0) : '-']]);
+  doc.y -= 14;
+  doc.text(doc.M, doc.y, 'F2', 10, 'Movimientos por producto', [0.08, 0.2, 0.38]);
+  doc.y -= 6;
+  const prodRows = Array.from(porProd.entries()).sort((a, b) => (b[1].ing + b[1].egr) - (a[1].ing + a[1].egr))
+    .map(([p, v]) => [p, '+' + fmtInt(v.ing), '-' + fmtInt(v.egr), (v.neto > 0 ? '+' : '') + fmtInt(v.neto)]);
+  pdfTabla(doc, [
+    { t: 'Producto', w: 262 }, { t: 'Ingresos', w: 85, align: 'R' }, { t: 'Egresos', w: 75, align: 'R' }, { t: 'Neto', w: 73, align: 'R' },
+  ], prodRows.length ? prodRows : [['Sin movimientos en el período', '-', '-', '-']]);
+  doc.y -= 14;
+  doc.text(doc.M, doc.y, 'F2', 10, 'Movimientos por cliente', [0.08, 0.2, 0.38]);
+  doc.y -= 6;
+  const cliRows = Array.from(porCli.entries()).sort((a, b) => b[1].n - a[1].n)
+    .map(([c, v]) => [c, fmtInt(v.n), '+' + fmtInt(v.ing), '-' + fmtInt(v.egr), (v.neto > 0 ? '+' : '') + fmtInt(v.neto)]);
+  pdfTabla(doc, [
+    { t: 'Cliente', w: 200 }, { t: 'Movs.', w: 60, align: 'R' }, { t: 'Ingresos', w: 85, align: 'R' }, { t: 'Egresos', w: 75, align: 'R' }, { t: 'Neto', w: 75, align: 'R' },
+  ], cliRows.length ? cliRows : [['Sin movimientos en el período', '-', '-', '-', '-']]);
+  doc.y -= 14;
+  doc.text(doc.M, doc.y, 'F2', 10, 'Ocupación actual (foto de hoy)', [0.08, 0.2, 0.38]);
+  doc.y -= 6;
+  pdfTabla(doc, [
+    { t: 'Posiciones ocupadas', w: 150 }, { t: 'Posiciones libres', w: 130 }, { t: 'Cajas en depósito', w: 130 }, { t: 'Ocupación racks', w: 100, align: 'R' },
+  ], [[fmtInt(k.ocupadas) + ' / ' + RACK_COORDS().length, fmtInt(k.libres), fmtInt(k.totalCajas), fmtPct(k.ocupadas / RACK_COORDS().length, 0)]]);
+  doc.y -= 14;
+  doc.text(doc.M, doc.y, 'F1', 8, 'Generado el ' + pdfStampStr() + ' · WMS Depósito Fiscal DAP1914', [0.55, 0.58, 0.64]);
+  return doc.build();
+}
+
+</script>
+<script>
+/* ============================================================
+   GOOGLE · Interfaz de usuario
+   Botón Drive del encabezado, centro de sincronización, correos,
+   documentación de DUAs, sección de Configuración y auto-sync.
+   ============================================================ */
+'use strict';
+
+let _docsDua = '';      /* DUA del modal de documentación abierto */
+let _autoSyncTimer = null;
+
+function renderCurrentViewSafe() {
+  try { renderCurrentView(); renderNavCounts(); } catch (e) { /* vista sin controles */ }
+}
+
+/* ---------- Botón del encabezado ---------- */
+function renderDriveButton() {
+  const b = $('#btnDrive');
+  if (!b) return;
+  const cls = gConnected() ? 'g-ok' : gConfigured() ? 'g-mid' : 'g-off';
+  b.innerHTML = ICONS.drive + '<span class="btn-txt">Drive</span><span class="drive-dot ' + cls + '" aria-hidden="true"></span>';
+  b.title = gConnected()
+    ? 'Google Drive · conectado como ' + GState.email + ' · clic para sincronizar'
+    : 'Conectar con Google Drive · sincronización y respaldo en la cuenta del depósito (frimaraldap1914@gmail.com)';
+}
+
+/* ---------- Errores de Google con mensaje accionable ---------- */
+function gErr(e) {
+  const m = String((e && e.message) || e || 'Error desconocido');
+  let title = 'No se pudo completar la operación';
+  if (/invalid_client|INVALID_CLIENT|invalid request/i.test(m) && /client/i.test(m)) title = 'El Client ID no es válido';
+  else if (/access_denied|popup_closed|popup closed|cierre/i.test(m)) title = 'Conexión cancelada';
+  else if (/origin/i.test(m)) title = 'Este origen no está autorizado en el Client ID';
+  else if (/quota|storage/i.test(m)) title = 'Google Drive sin espacio disponible';
+  else if (/network|Failed to fetch|carg/i.test(m)) title = 'Sin conexión a Google';
+  toast(title, 'error', m);
+}
+
+/* ============================================================
+   CENTRO DE SINCRONIZACIÓN (modal Drive)
+   ============================================================ */
+function openDriveModal() {
+  const cfg = gCfg();
+  const connected = gConnected();
+  const wrongAcc = connected && cfg.hint && GState.email && GState.email.toLowerCase() !== String(cfg.hint).toLowerCase();
+  const dis = connected ? '' : ' disabled';
+  openModal({
+    title: 'Sincronización con Google Drive',
+    sub: 'Cuenta del depósito: ' + esc(cfg.hint || GOOGLE_HINT_DEFAULT) + ' · carpeta ' + DRIVE_FOLDER + ' en Mi Unidad',
+    body:
+      (gOriginProblem()
+        ? '<div class="alert warn">' + ICONS.alert + '<div><b>Estás abriendo la app como archivo local (file://).</b> Google solo autoriza sesiones desde páginas web (http/https). Publicala en GitHub Pages (recomendado) o servila localmente — los pasos están en Configuración.</div></div>'
+        : '') +
+      (connected
+        ? '<div class="alert ok">' + ICONS.drive + '<div><b>Conectado como ' + esc(GState.email) + '</b>' +
+          (wrongAcc ? ' <span class="badge warn">cuenta distinta de la sugerida (' + esc(cfg.hint) + ')</span>' : '') +
+          '<br>El sistema guarda todo en <b>Drive/' + DRIVE_FOLDER + '</b>: el maestro <b>' + DRIVE_DB_NAME + '</b>, el estado completo de la app y respaldos fechados en <b>' + DRIVE_SUB_RESPALDOS + '/</b>. Los PDFs aduaneros van a <b>' + DRIVE_SUB_DOCS + '/</b>.</div></div>'
+        : '<div class="alert ' + (gConfigured() ? 'info' : 'warn') + '">' + ICONS.drive + '<div><b>' +
+          (gConfigured() ? 'Sesión no iniciada.' : 'Todavía no configuraste el Google Client ID.') + '</b> ' +
+          (gConfigured()
+            ? 'Conectate con la cuenta del depósito (' + esc(cfg.hint || GOOGLE_HINT_DEFAULT) + ') para sincronizar: al primer inicio la app crea la carpeta ' + DRIVE_FOLDER + ' en tu Drive.'
+            : 'En un minuto queda andando: seguí la guía paso a paso en <b>Configuración → Sincronización con Google Drive y Gmail</b>. Mientras tanto, la app funciona 100% offline con Importar/Exportar Excel.') +
+          '</div></div>') +
+      '<div class="form-section">Estado</div>' +
+      '<div class="drive-stats">' +
+        '<div class="stat-mini"><span class="v">' + (cfg.lastSyncAt ? esc(fmtDateTime(cfg.lastSyncAt)) : '—') + '</span><span class="l">Última sincronización local</span></div>' +
+        '<div class="stat-mini"><span class="v" id="drvDriveDate">' + (connected ? '…' : '—') + '</span><span class="l">Último archivo en Drive</span></div>' +
+      '</div>' +
+      '<div class="form-section">Acciones</div>' +
+      '<div class="drive-actions">' +
+        (connected ? '' : '<button class="btn primary" id="drvConnect"' + (gConfigured() && !gOriginProblem() ? '' : ' disabled') + '>' + ICONS.drive + ' Conectar con Google Drive</button>') +
+        '<button class="btn primary" id="drvSave"' + dis + '>' + ICONS.upload + ' Guardar en Drive</button>' +
+        '<button class="btn" id="drvDownload"' + dis + '>' + ICONS.download + ' Descargar desde Drive</button>' +
+        '<button class="btn" id="drvBackup"' + dis + '>' + ICONS.db + ' Respaldar ahora</button>' +
+        '<button class="btn" id="drvMail"' + dis + '>' + ICONS.mail + ' Enviar reporte por correo</button>' +
+        (connected ? '<button class="btn ghost" id="drvDisconnect">Desconectar</button>' : '') +
+      '</div>' +
+      '<label class="checkline" style="margin-top:14px"><input type="checkbox" id="drvAuto"' + (cfg.autoSync ? ' checked' : '') + '> <span><b>Sincronización automática</b> — guardar en Drive ~25 s después de cada cambio del sistema (recomendado en uso monousuario)</span></label>',
+    foot: '<button class="btn" id="drvClose">Cerrar</button>' + (gConfigured() ? '' : '<button class="btn primary" id="drvSetup">' + ICONS.gear + ' Ir a Configuración</button>'),
+    onOpen() {
+      $('#drvClose').onclick = closeModal;
+      const setup = $('#drvSetup'); if (setup) setup.onclick = () => { closeModal(); openSettingsModal(); };
+      const con = $('#drvConnect'); if (con) con.onclick = async () => {
+        con.disabled = true; con.textContent = 'Abriendo Google…';
+        try { await gAuth(); await gEnsureTree(); toast('Google Drive conectado', 'ok', 'Cuenta: ' + GState.email + ' · carpeta ' + DRIVE_FOLDER); auditar('Conexión con Google Drive', 'Cuenta ' + GState.email); openDriveModal(); }
+        catch (e) { gErr(e); openDriveModal(); }
+      };
+      const busy = (btn, txt, fn) => { btn.onclick = async () => { btn.disabled = true; btn.innerHTML = ICONS.hist + ' ' + txt; try { await fn(); } catch (e) { gErr(e); } openDriveModal(); }; };
+      busy($('#drvSave'), 'Guardando…', () => driveSaveNow());
+      busy($('#drvDownload'), 'Descargando…', () => driveDownloadNow());
+      busy($('#drvBackup'), 'Respaldando…', () => driveSaveNow({ backup: true }));
+      const mail = $('#drvMail'); if (mail) mail.onclick = () => { closeModal(); emailReportePeriodo('', ''); };
+      const dis2 = $('#drvDisconnect'); if (dis2) dis2.onclick = async () => {
+        const ok = await confirmDialog({ title: 'Desconectar Google Drive', html: 'Se cerrará la sesión de Google en esta app. Los datos locales NO se modifican: podés seguir trabajando offline y reconectarte cuando quieras.', yes: 'Desconectar' });
+        if (!ok) return;
+        await gDisconnect(); auditar('Desconexión de Google Drive', 'Sesión cerrada por el usuario'); openDriveModal();
+      };
+      $('#drvAuto').onchange = e => {
+        gCfg().autoSync = e.target.checked; saveDB();
+        toast(e.target.checked ? 'Sincronización automática activada' : 'Sincronización automática desactivada', 'ok',
+          e.target.checked ? 'Los cambios se guardan en Drive ~25 s después de cada operación.' : 'Guardá manualmente con «Guardar en Drive».');
+        if (e.target.checked) renderCurrentViewSafe();
+      };
+      if (connected) {
+        driveInfo().then(info => {
+          const el = $('#drvDriveDate');
+          if (el && info && info.db) el.textContent = fmtDateTime(info.db.modifiedTime || '');
+          else if (el) el.textContent = 'sin archivos aún';
+        }).catch(() => { const el = $('#drvDriveDate'); if (el) el.textContent = '—'; });
+      }
+    },
+  });
+}
+
+/* ============================================================
+   AUTO-SINCRONIZACIÓN
+   ============================================================ */
+function scheduleAutoSync() {
+  if (!gCfg().autoSync || !GState.token) return;   /* solo con sesión activa */
+  clearTimeout(_autoSyncTimer);
+  _autoSyncTimer = setTimeout(() => {
+    if (!gCfg().autoSync || !GState.token) return;
+    driveSaveNow({ silent: true }).catch(e => { console.warn('autoSync', e); });
+  }, 25000);
+}
+
+/* ============================================================
+   CORREO (Gmail) · modal genérico con adjuntos
+   ============================================================ */
+function attExcelHoy() {
+  return {
+    label: 'Base completa en Excel (.xlsx)',
+    sub: 'Todas las pestañas del sistema al ' + fmtDate(todayISO()),
+    build: async () => ({ filename: 'WMS_DAP1914_DB_' + todayISO() + '.xlsx', mime: G_MIME_XLSX, bytes: workbookBytes(buildWorkbook()) }),
+  };
+}
+function attDocsDUA(dua) {
+  return {
+    label: 'Documentación del DUA ' + dua + ' (PDFs de Drive)',
+    sub: 'Archivos adjuntos guardados en ' + DRIVE_FOLDER + '/' + DRIVE_SUB_DOCS,
+    build: async () => {
+      const files = await driveListDocs(dua);
+      const out = [];
+      for (const f of files) out.push({ filename: f.name, mime: f.mimeType || G_MIME_PDF, bytes: await gDownloadBytes(f.id) });
+      return out;
+    },
+  };
+}
+function openEmailModal(opts) {
+  const o = Object.assign({ to: gCfg().lastTo || '', subject: '', body: '', attachments: [] }, opts || {});
+  const connected = gConnected();
+  const attRows = o.attachments.map((a, i) =>
+    '<label class="mail-opt"><input type="checkbox" data-att="' + i + '" checked> <div><b>' + esc(a.label) + '</b><small>' + esc(a.sub || '') + '</small></div></label>').join('');
+  openModal({
+    title: 'Enviar por correo (Gmail)',
+    sub: connected
+      ? 'Se envía con la sesión de Google conectada: ' + esc(GState.email)
+      : 'Se envía con la cuenta del depósito (' + esc(gCfg().hint || GOOGLE_HINT_DEFAULT) + ') una vez conectada.',
+    body:
+      (!connected
+        ? '<div class="alert warn">' + ICONS.alert + '<div><b>No hay sesión de Google activa.</b> Conectate para poder enviar el correo.' +
+          (gConfigured() ? ' <button class="btn sm" id="gmConnect">Conectar ahora</button>' : ' Antes configurá el Client ID en <b>Configuración</b>.') + '</div></div>'
+        : '') +
+      '<div class="form-grid">' +
+        fieldHTML('gm-to', 'Para (correo del destinatario)', '<input id="gm-to" type="email" placeholder="destinatario@correo.com" value="' + esc(o.to) + '">') +
+        fieldHTML('gm-subj', 'Asunto', '<input id="gm-subj" value="' + esc(o.subject) + '">') +
+      '</div>' +
+      fieldHTML('gm-body', 'Mensaje', '<textarea id="gm-body" rows="8" style="width:100%;resize:vertical">' + esc(o.body) + '</textarea>') +
+      (attRows ? '<div class="form-section">Adjuntos</div><div class="mail-atts">' + attRows + '</div>' : '') +
+      '<div class="alert danger" id="gmStatus" style="display:none"></div>',
+    foot: '<button class="btn" id="gmCancel">Cancelar</button>' +
+      '<button class="btn primary" id="gmSend"' + (connected ? '' : ' disabled') + '>' + ICONS.mail + ' Enviar por Gmail</button>',
+    onOpen() {
+      $('#gmCancel').onclick = closeModal;
+      const cb = $('#gmConnect');
+      if (cb) cb.onclick = async () => { try { await gAuth(); closeModal(); openEmailModal(opts); } catch (e) { gErr(e); } };
+      $('#gmSend').onclick = async () => {
+        const to = $('#gm-to').value.trim();
+        const subj = $('#gm-subj').value.trim() || 'WMS · Depósito Fiscal DAP1914';
+        const body = $('#gm-body').value;
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) { markInvalid('gm-to', 'Escribí un correo de destino válido.'); return; }
+        if (!gConnected()) { toast('Conectá tu cuenta de Google para enviar', 'warn'); return; }
+        const btn = $('#gmSend');
+        btn.disabled = true; btn.innerHTML = ICONS.hist + ' Preparando adjuntos…';
+        try {
+          const atts = [];
+          for (const cbx of $$('#modalBox [data-att]').filter(x => x.checked)) {
+            const built = await o.attachments[+cbx.dataset.att].build();
+            (Array.isArray(built) ? built : built ? [built] : []).forEach(x => atts.push(x));
+          }
+          btn.innerHTML = ICONS.hist + ' Enviando…';
+          await gmailSend(to, subj, body, atts);
+          gCfg().lastTo = to; saveDB();
+          auditar('Correo enviado', subj + ' → ' + to + (atts.length ? ' · ' + atts.length + ' adjunto(s)' : ''));
+          closeModal();
+          toast('Correo enviado', 'ok', 'Para: ' + to + (atts.length ? ' · ' + atts.length + ' adjunto(s)' : ' · sin adjuntos'));
+        } catch (e) {
+          btn.disabled = false; btn.innerHTML = ICONS.mail + ' Reintentar envío';
+          const st = $('#gmStatus');
+          st.style.display = 'flex';
+          st.innerHTML = ICONS.alert + '<div><b>No se pudo enviar:</b> ' + esc(e.message) + '</div>';
+        }
+      };
+    },
+  });
+}
+
+/* ---------- Correos por contexto ---------- */
+function emailComprobanteMov(mov) {
+  if (!mov) return;
+  const atts = [
+    { label: 'Comprobante en PDF', sub: 'PDF con el detalle completo del ' + mov.tipo.toLowerCase(),
+      build: async () => ({ filename: 'Comprobante_' + mov.tipo + '_' + (mov.fecha || '') + '_' + (mov.coordenada || '') + '.pdf', mime: G_MIME_PDF, bytes: pdfComprobante(mov) }) },
+    attExcelHoy(),
+  ];
+  if (mov.dua) atts.push(attDocsDUA(mov.dua));
+  const lin = (l, v) => v ? l + v + '\n' : '';
+  openEmailModal({
+    subject: 'Comprobante de ' + mov.tipo + ' · ' + (mov.producto || '—') + ' · ' + fmtDate(mov.fecha) + ' · DAP1914',
+    body: 'Hola,\n\nAdjuntamos el comprobante de ' + mov.tipo.toLowerCase() + ' del ' + fmtDate(mov.fecha) + ' del depósito fiscal DAP1914.\n\n' +
+      lin('Producto: ', mov.producto) + lin('Medida: ', mov.medida) + lin('Cantidad: ', fmtInt(mov.cantidad) + ' cajas') +
+      lin('Coordenada: ', mov.coordenada) + lin('Cliente: ', mov.cliente) + lin('DUA: ', mov.dua) + lin('Referencia: ', mov.refDoc) +
+      '\nQuedamos a disposición ante cualquier consulta.\n\nWMS · Control Operativo de Depósito Fiscal — DAP1914',
+    attachments: atts,
+  });
+}
+function emailStockCliente(cliente) {
+  const lineas = lineasInventarioCache().filter(l => (l.cliente || '') === cliente && l.stock > 0);
+  const total = lineas.reduce((a, l) => a + l.stock, 0);
+  openEmailModal({
+    subject: 'Stock en depósito · ' + cliente + ' · al ' + fmtDate(todayISO()) + ' · DAP1914',
+    body: 'Hola,\n\nAdjuntamos el detalle del stock vigente de ' + cliente + ' en el depósito fiscal DAP1914.\n\n' +
+      '- Líneas de inventario con saldo: ' + lineas.length + '\n- Total de cajas en depósito: ' + fmtInt(total) + '\n\n' +
+      'Quedamos a disposición ante cualquier consulta.\n\nWMS · Control Operativo de Depósito Fiscal — DAP1914',
+    attachments: [
+      { label: 'Stock del cliente en PDF', sub: 'Inventario vigente de ' + cliente,
+        build: async () => ({ filename: 'Stock_' + String(cliente).replace(/[^\w.-]+/g, '_') + '_' + todayISO() + '.pdf', mime: G_MIME_PDF, bytes: pdfStockPorCliente(cliente) }) },
+      attExcelHoy(),
+    ],
+  });
+}
+function emailStockDUA(dua) {
+  const d = resumenPorDUA().find(x => x.dua === String(dua));
+  openEmailModal({
+    subject: 'Stock del DUA ' + dua + ' · Depósito Fiscal DAP1914 · ' + fmtDate(todayISO()),
+    body: 'Hola,\n\nAdjuntamos el detalle de la mercadería vinculada al DUA ' + dua + (d
+      ? ':\n\n- Cajas ingresadas: ' + fmtInt(d.ingreso) + '\n- Cajas egresadas: ' + fmtInt(d.egreso) + '\n- Saldo en depósito: ' + fmtInt(d.saldo) + '\n- Días de permanencia: ' + (diasDesde(d.primerFecha) == null ? '—' : diasDesde(d.primerFecha)) + '\n- Estado documental: ' + estadoAduanaDe(d.dua)
+      : ' que permanece en el depósito fiscal DAP1914.') +
+      '\n\nQuedamos a disposición ante cualquier consulta.\n\nWMS · Control Operativo de Depósito Fiscal — DAP1914',
+    attachments: [
+      { label: 'Stock del DUA en PDF', sub: 'Mercadería del DUA que permanece en depósito',
+        build: async () => ({ filename: 'Stock_DUA_' + String(dua).replace(/[^\w.-]+/g, '_') + '_' + todayISO() + '.pdf', mime: G_MIME_PDF, bytes: pdfStockPorDUA(dua) }) },
+      attExcelHoy(),
+      attDocsDUA(dua),
+    ],
+  });
+}
+function emailReportePeriodo(desde, hasta) {
+  const per = (desde || hasta) ? 'del ' + fmtDate(desde || 'inicio') + ' al ' + fmtDate(hasta || 'hoy') : 'de todo el histórico';
+  openEmailModal({
+    subject: 'Reporte de rotación y ocupación ' + per + ' · DAP1914 · ' + fmtDate(todayISO()),
+    body: 'Hola,\n\nAdjuntamos el reporte de rotación y ocupación del depósito fiscal DAP1914 correspondiente ' + per + ', con desglose por producto, cliente y posiciones, más la foto actual de ocupación.\n\n' +
+      'Quedamos a disposición ante cualquier consulta.\n\nWMS · Control Operativo de Depósito Fiscal — DAP1914',
+    attachments: [
+      { label: 'Reporte del período en PDF', sub: 'Resumen, desgloses y ocupación actual',
+        build: async () => ({ filename: 'Reporte_DAP1914_' + todayISO() + '.pdf', mime: G_MIME_PDF, bytes: pdfReportePeriodo(desde, hasta) }) },
+      attExcelHoy(),
+    ],
+  });
+}
+
+/* ============================================================
+   DOCUMENTACIÓN DE DUAs (PDFs en Drive)
+   ============================================================ */
+async function openDuaDocsModal(dua) {
+  if (!dua) return;
+  _docsDua = String(dua);
+  openModal({
+    title: 'Documentación del DUA ' + esc(dua),
+    sub: 'PDFs (DUA escaneado, remitos, documentación aduanera) guardados en Drive/' + DRIVE_FOLDER + '/' + DRIVE_SUB_DOCS,
+    size: 'wide',
+    body: '<div id="duaDocsBody">' + (gConnected()
+      ? '<div class="muted" style="padding:22px;text-align:center">' + ICONS.hist + ' Cargando documentación desde Drive…</div>'
+      : '') + '</div>',
+    foot: '<button class="btn" id="ddClose">Cerrar</button>',
+    onOpen() {
+      $('#ddClose').onclick = closeModal;
+      if (!gConnected()) {
+        $('#duaDocsBody').innerHTML =
+          '<div class="alert warn">' + ICONS.alert + '<div><b>No hay sesión de Google activa.</b> Conectate con el botón <b>Drive</b> del encabezado para adjuntar y consultar la documentación del DUA en Google Drive.</div></div>';
+        return;
+      }
+      driveListDocs(dua).then(renderDuaDocsBody).catch(e => { renderDuaDocsBody([]); gErr(e); });
+    },
+  });
+}
+function renderDuaDocsBody(files) {
+  const box = $('#duaDocsBody');
+  if (!box) return;
+  const rows = (files || []).map(f =>
+    '<tr><td>' + ICONS.file + '</td><td class="strong">' + esc(f.name) + '</td><td class="mono">' + esc(fmtDateTime(f.modifiedTime)) + '</td>' +
+    '<td class="num">' + fmtInt(Math.ceil((Number(f.size) || 0) / 1024)) + ' KB</td>' +
+    '<td><div class="row-actions"><button class="btn sm" data-dl="' + esc(f.id) + '" data-name="' + esc(f.name) + '">' + ICONS.download + ' Descargar</button></div></td></tr>').join('');
+  box.innerHTML =
+    '<div class="drive-actions" style="margin-bottom:12px">' +
+      '<button class="btn primary" id="ddUpload">' + ICONS.upload + ' Adjuntar PDF del DUA</button>' +
+      '<button class="btn" id="ddMail">' + ICONS.mail + ' Enviar por correo</button>' +
+      '<button class="btn" id="ddStockPdf">' + ICONS.print + ' Descargar stock del DUA (PDF)</button>' +
+    '</div>' +
+    (rows
+      ? '<div class="tbl-wrap" style="box-shadow:none;border:0;max-height:44vh"><table class="tbl"><thead><tr><th></th><th>Documento</th><th>Subido</th><th class="num">Tamaño</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+      : '<div class="empty" style="padding:26px">' + ICONS.file + '<h3>Sin documentación adjunta para este DUA</h3><p>Adjuntá el DUA escaneado, los remitos o la documentación aduanera: quedan guardados en Google Drive y disponibles desde cualquier dispositivo conectado.</p></div>');
+  $('#ddUpload').onclick = () => $('#filePdfDua').click();
+  $('#ddMail').onclick = () => emailStockDUA(_docsDua);
+  $('#ddStockPdf').onclick = () => { downloadBytesAs(pdfStockPorDUA(_docsDua), 'Stock_DUA_' + _docsDua + '_' + todayISO() + '.pdf', G_MIME_PDF); toast('PDF descargado', 'ok', 'Stock del DUA ' + _docsDua); };
+  $$('#duaDocsBody [data-dl]').forEach(b => b.onclick = async () => {
+    try { downloadBytesAs(await gDownloadBytes(b.dataset.dl), b.dataset.name, G_MIME_PDF); }
+    catch (e) { gErr(e); }
+  });
+}
+function bindGoogleOnce() {
+  const inp = $('#filePdfDua');
+  if (inp) inp.onchange = async e => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length || !_docsDua) return;
+    let ok = 0;
+    for (const f of files) {
+      try { await driveUploadDoc(_docsDua, f); ok++; }
+      catch (err) { gErr(err); }
+    }
+    if (ok) {
+      toast(ok + ' documento(s) subido(s) a Drive', 'ok', DRIVE_FOLDER + '/' + DRIVE_SUB_DOCS + ' · DUA ' + _docsDua);
+      try { renderDuaDocsBody(await driveListDocs(_docsDua)); } catch (e2) { /* el modal se recargará al reabrir */ }
+    }
+  };
+}
+
+/* ============================================================
+   TARJETA DE SINCRONIZACIÓN EN EL PANEL
+   ============================================================ */
+function drivePanelCardHTML() {
+  const cfg = gCfg();
+  const connected = gConnected();
+  if (!connected) {
+    return '<div class="card sync-card" id="driveCard">' + ICONS.drive +
+      '<div class="sync-txt"><b>Respaldo en Google Drive</b><span>La operación es local e instantánea; sincronizá con la cuenta del depósito (' + esc(cfg.hint || GOOGLE_HINT_DEFAULT) + ') para respaldar y continuar en otro dispositivo.</span></div>' +
+      '<div class="head-actions"><button class="btn" id="dcGo">' + ICONS.gear + ' Conectar Drive</button></div></div>';
+  }
+  const wrongAcc = cfg.hint && GState.email && GState.email.toLowerCase() !== String(cfg.hint).toLowerCase();
+  return '<div class="card sync-card ok" id="driveCard">' + ICONS.drive +
+    '<div class="sync-txt"><b>Drive conectado' + (wrongAcc ? ' <span class="badge warn">' + esc(GState.email) + '</span>' : ' · ' + esc(GState.email)) + '</b>' +
+    '<span>Última sincronización: <b id="dcLast">' + (cfg.lastSyncAt ? esc(fmtDateTime(cfg.lastSyncAt)) : 'todavía no guardaste en Drive') + '</b>' + (cfg.autoSync ? ' · auto-sync activado' : '') + '</span></div>' +
+    '<div class="head-actions">' +
+      '<button class="btn sm" id="dcSave">' + ICONS.upload + ' Guardar</button>' +
+      '<button class="btn sm" id="dcBackup">' + ICONS.db + ' Respaldar</button>' +
+      '<button class="btn sm" id="dcOpen">' + ICONS.gear + ' Sincronización</button>' +
+    '</div></div>';
+}
+function bindDrivePanelCard() {
+  const go = $('#dcGo'); if (go) go.onclick = () => gConfigured() ? openDriveModal() : openSettingsModal();
+  const sv = $('#dcSave'); if (sv) sv.onclick = async () => { sv.disabled = true; try { await driveSaveNow(); } catch (e) { gErr(e); } renderCurrentViewSafe(); };
+  const bk = $('#dcBackup'); if (bk) bk.onclick = async () => { bk.disabled = true; try { await driveSaveNow({ backup: true }); } catch (e) { gErr(e); } renderCurrentViewSafe(); };
+  const op = $('#dcOpen'); if (op) op.onclick = openDriveModal;
+}
+
+/* ============================================================
+   SECCIÓN GOOGLE EN CONFIGURACIÓN
+   ============================================================ */
+function gOriginLabel() {
+  if (location.protocol === 'file:') return { bad: true, origin: '' };
+  return { bad: false, origin: location.origin };
+}
+function gCurrentOriginHint() {
+  if (location.protocol === 'file:') return 'https://sebasm2kuy.github.io (si publicás la app en GitHub Pages)';
+  return location.origin;
+}
+const G_GUIDE_STEPS = [
+  'Abrí <b>console.cloud.google.com</b> e iniciá sesión con la cuenta del depósito: <b>frimaraldap1914@gmail.com</b>.',
+  'En la barra superior, desplegá el selector de proyectos → <b>Nuevo proyecto</b> → nombre <b>WMS DAP1914</b> → <b>Crear</b> (y esperá a que quede seleccionado).',
+  'Menú ☰ → <b>APIs y servicios → Biblioteca</b> → buscá <b>Google Drive API</b> → <b>Activar</b>. Repetí lo mismo con <b>Gmail API</b>.',
+  'Andá a <b>APIs y servicios → Pantalla de consentimiento OAuth</b> → elegí <b>Externo</b> → <b>Crear</b> → nombre de la app <b>WMS DAP1914</b> → guardá. Después, en <b>Usuarios de prueba</b>, agregá <b>frimaraldap1914@gmail.com</b> (paso obligatorio mientras la app quede en modo <i>Testing</i>).',
+  'Andá a <b>Credenciales → Crear credenciales → ID de cliente de OAuth</b> → tipo <b>Aplicación web</b> → Crear.',
+  'En <b>Orígenes de JavaScript autorizados</b> → <b>Agregar URI</b> y pegá el <b>origen actual</b> que te muestra esta pantalla (más abajo). Si usás la app en varias URLs (GitHub Pages, localhost), agregá una por una.',
+  'Copiá el <b>ID de cliente</b> que queda en pantalla (termina en <i>.apps.googleusercontent.com</i>).',
+  'Pegalo en el campo de abajo, apretá <b>Guardar Client ID</b> y después <b>Conectar con Google Drive</b>. La primera vez, Google va a avisar que la app no está verificada: es lo esperado en modo Testing con tu propia cuenta → <b>Continuar</b>.',
+];
+function googleSettingsSectionHTML() {
+  const cfg = gCfg();
+  const connected = gConnected();
+  const org = gOriginLabel();
+  return '' +
+    '<div class="form-section">Sincronización con Google Drive y Gmail</div>' +
+    '<div class="alert ' + (connected ? 'ok' : 'info') + '">' + ICONS.drive + '<div><b>Arquitectura monousuario sin servidores.</b> ' +
+      'La app corre 100% en tu navegador y usa la cuenta de Google del depósito (<b>' + esc(cfg.hint || GOOGLE_HINT_DEFAULT) + '</b>) como base de datos y respaldo: ' +
+      '<b>Google Drive</b> guarda el maestro <b>WMS_DAP1914_DB.xlsx</b> (pestañas del sistema), respaldos fechados y los PDFs aduaneros; <b>Gmail</b> envía comprobantes y reportes con adjuntos. ' +
+      'La cuenta queda preseleccionada al iniciar sesión (login_hint).</div></div>' +
+    (connected
+      ? '<div class="alert ok">' + ICONS.shield + '<div><b>Sesión activa: ' + esc(GState.email) + '</b>' +
+        (cfg.lastSyncAt ? ' · última sincronización ' + esc(fmtDateTime(cfg.lastSyncAt)) : '') + '</div></div>'
+      : (org.bad
+          ? '<div class="alert warn">' + ICONS.alert + '<div><b>Estás con el archivo abierto localmente (file://).</b> Google no autoriza sesiones desde file://: para usar Drive/Gmail, publicá la app en <b>GitHub Pages</b> (Settings → Pages → main / root) o servila con <code>python -m http.server</code>. Todo lo demás de la app funciona igual offline.</div></div>'
+          : '')) +
+    '<div class="form-grid">' +
+      fieldHTML('gsetId', 'Google Client ID', '<input id="gsetId" placeholder="xxxxxxxx.apps.googleusercontent.com" value="' + esc(cfg.clientId) + '" autocomplete="off" spellcheck="false">',
+        'Se genera gratis en Google Cloud Console con la cuenta ' + esc(cfg.hint || GOOGLE_HINT_DEFAULT) + ' · guía completa abajo') +
+      fieldHTML('gsetHint', 'Cuenta del depósito (login_hint)', '<input id="gsetHint" type="email" value="' + esc(cfg.hint || GOOGLE_HINT_DEFAULT) + '">',
+        'Cuenta preseleccionada al iniciar sesión y usada para Drive y Gmail') +
+    '</div>' +
+    '<div class="gset-origin">' +
+      '<span class="gset-origin-l">Origen actual para Google Console:</span>' +
+      '<code id="gsetOrigin">' + esc(org.bad ? '— (abrir por https, ej. GitHub Pages)' : org.origin) + '</code>' +
+      '<button class="btn sm" id="gsetCopy"' + (org.bad ? ' disabled' : '') + '>' + ICONS.copy + ' Copiar</button>' +
+    '</div>' +
+    '<details class="gset-guide">' +
+      '<summary>' + ICONS.gear + ' Guía paso a paso: activar la sincronización en 3 minutos</summary>' +
+      '<ol>' + G_GUIDE_STEPS.map(s => '<li>' + s + '</li>').join('') + '</ol>' +
+      '<p class="muted">Nota: los permisos que pide la app son mínimos (<b>drive.file</b>: solo los archivos que crea esta app, nunca el resto de tu Drive · <b>gmail.send</b>: solo enviar correos). El token de sesión vive solo en el navegador, nunca se sube a ningún lado.</p>' +
+    '</details>' +
+    '<label class="checkline" style="margin:10px 0 2px"><input type="checkbox" id="gsetAuto"' + (cfg.autoSync ? ' checked' : '') + '> <span><b>Sincronización automática</b> — guardar en Drive ~25 s después de cada cambio (solo con sesión activa)</span></label>' +
+    '<div class="drive-actions" style="margin-top:12px">' +
+      '<button class="btn" id="gsetSave">' + ICONS.check + ' Guardar Client ID</button>' +
+      '<button class="btn primary" id="gsetConnect"' + (cfg.clientId && !org.bad ? '' : ' disabled') + '>' + ICONS.drive + (connected ? ' Reconectar' : ' Conectar con Google Drive') + '</button>' +
+      (connected ? '<button class="btn ghost" id="gsetDisconnect">Desconectar</button>' : '') +
+    '</div>';
+}
+function bindGoogleSettings() {
+  const saveBtn = $('#gsetSave');
+  if (!saveBtn) return;
+  saveBtn.onclick = () => {
+    const idv = $('#gsetId').value.trim();
+    const hint = $('#gsetHint').value.trim() || GOOGLE_HINT_DEFAULT;
+    if (idv && !/^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(idv)) { markInvalid('gsetId', 'El Client ID debe terminar en .apps.googleusercontent.com'); return; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(hint)) { markInvalid('gsetHint', 'Escribí un correo válido'); return; }
+    const cfg = gCfg();
+    cfg.clientId = idv; cfg.hint = hint;
+    if (idv !== GState.clientIdUsed) { GState.client = null; GState.clientIdUsed = ''; } /* forzar re-init del cliente OAuth */
+    saveDB();
+    renderDriveButton();
+    toast(idv ? 'Client ID guardado' : 'Client ID quitado', 'ok', idv ? 'Ya podés conectar con Google Drive desde acá o desde el botón Drive.' : 'La sincronización quedó desactivada (la app sigue 100% operativa offline).');
+    renderSettingsModal();
+  };
+  $('#gsetConnect').onclick = async () => {
+    const btn = $('#gsetConnect');
+    btn.disabled = true; btn.textContent = 'Abriendo Google…';
+    try {
+      await gAuth();
+      await gEnsureTree();
+      auditar('Conexión con Google Drive', 'Cuenta ' + GState.email);
+      toast('Google Drive conectado', 'ok', 'Cuenta: ' + GState.email + ' · carpeta ' + DRIVE_FOLDER + ' lista');
+      renderSettingsModal();
+    } catch (e) { gErr(e); renderSettingsModal(); }
+  };
+  const dis = $('#gsetDisconnect');
+  if (dis) dis.onclick = async () => {
+    await gDisconnect();
+    toast('Sesión de Google cerrada', 'ok', 'Los datos locales no se modificaron.');
+    renderSettingsModal();
+  };
+  $('#gsetAuto').onchange = e => { gCfg().autoSync = e.target.checked; saveDB(); };
+  const cp = $('#gsetCopy');
+  if (cp) cp.onclick = async () => {
+    const org = gOriginLabel();
+    try { await navigator.clipboard.writeText(org.origin); toast('Origen copiado', 'ok', org.origin); }
+    catch (e) {
+      const r = document.createRange(); r.selectNode($('#gsetOrigin'));
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      try { document.execCommand('copy'); toast('Origen copiado', 'ok', org.origin); } catch (e2) { toast('Copialo a mano', 'warn', org.origin); }
+      s.removeAllRanges();
+    }
+  };
 }
 
 </script>
@@ -6320,6 +7500,8 @@ function boot() {
   $('#searchIcon').innerHTML = ICONS.search;
   $('#btnImport').innerHTML = ICONS.upload + '<span class="btn-txt">Importar</span>';
   $('#btnExportMenu').innerHTML = ICONS.download + '<span class="btn-txt">Exportar</span>';
+  if (typeof renderDriveButton === 'function') renderDriveButton();
+  if (typeof gCfg === 'function') gCfg(); /* asegura defaults de la configuración Google */
   $('#btnTheme').innerHTML = document.documentElement.getAttribute('data-theme') === 'dark' ? ICONS.sun : ICONS.moon;
   $('#btnSettings').innerHTML = ICONS.gear;
   $('#btnSettings').title = 'Configuración · rol, PIN y respaldos';
@@ -6349,6 +7531,9 @@ function boot() {
   });
   $('#btnImport').onclick = openImportModal;
   $('#btnSettings').onclick = openSettingsModal;
+  const btnDrive = $('#btnDrive');
+  if (btnDrive) btnDrive.onclick = () => openDriveModal();
+  if (typeof bindGoogleOnce === 'function') bindGoogleOnce();
   $('#btnExportMenu').onclick = e => { e.stopPropagation(); $('#exportDrop').classList.toggle('open'); };
   document.addEventListener('click', () => $('#exportDrop').classList.remove('open'));
   $('#btnExportXlsx').onclick = exportarXLSX;
