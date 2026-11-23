@@ -4044,16 +4044,19 @@ function rolTextoSesion() {
 
 /* ---------- Login / logout ---------- */
 function sesionGuardar(u) {
-  try { localStorage.setItem(LS_SESION, JSON.stringify({ uid: u.id, ts: new Date().toISOString() })); } catch (e) { /* noop */ }
+  /* sessionStorage (vive solo en esta pestaña): al cerrar la página la sesión se cierra sola */
+  try { sessionStorage.setItem(LS_SESION, JSON.stringify({ uid: u.id, ts: new Date().toISOString() })); } catch (e) { /* noop */ }
 }
-/*Restaura la sesión guardada en este navegador (recarga). Devuelve true si entró directo.*/
+/*Restaura la sesión de esta pestaña (recarga de la misma página). Devuelve true si entró directo.
+  La sesión NO sobrevive al cerrar la ventana: la próxima visita vuelve a pedir usuario.*/
 function sesionRestaurada() {
+  try { localStorage.removeItem(LS_SESION); } catch (e) { /* migración de la versión anterior */ }
   try {
-    const raw = localStorage.getItem(LS_SESION);
+    const raw = sessionStorage.getItem(LS_SESION);
     if (!raw) return false;
     const s = JSON.parse(raw);
     const u = (DB.usuarios || []).find(x => x.id === s.uid);
-    if (!usuarioActivo(u)) { localStorage.removeItem(LS_SESION); return false; }
+    if (!usuarioActivo(u)) { sessionStorage.removeItem(LS_SESION); return false; }
     SESION = u;
     return true;
   } catch (e) { return false; }
@@ -4079,7 +4082,7 @@ function cerrarSesion() {
   auditar('Cierre de sesión', nombreUsuarioSesion());
   saveDB();
   SESION = null;
-  try { localStorage.removeItem(LS_SESION); } catch (e) { /* noop */ }
+  try { sessionStorage.removeItem(LS_SESION); } catch (e) { /* noop */ }
   location.reload();
 }
 
@@ -4110,12 +4113,12 @@ function renderLock() {
         '</button>').join('') + '</div>' +
       '<div class="lock-sep"><span>o ingresá con usuario y contraseña</span></div>' +
       '<div class="lock-form">' +
-        '<input id="lk-user" placeholder="Usuario" autocomplete="username" autocapitalize="none" spellcheck="false">' +
-        '<input id="lk-pass" type="password" placeholder="Contraseña" autocomplete="current-password">' +
+        '<input id="lk-user" placeholder="Usuario" autocomplete="off" autocapitalize="none" spellcheck="false">' +
+        '<input id="lk-pass" type="text" placeholder="Contraseña" autocomplete="new-password">' +
         '<button class="btn primary lock-btn" id="lkIngresar">' + ICONS.logout + ' Ingresar</button>' +
       '</div>' +
       '<div class="lock-err" id="lkErr"></div>' +
-      '<div class="lock-foot">La sesión queda abierta en este navegador · botón «Cerrar sesión» en el panel lateral</div>' +
+      '<div class="lock-foot">La sesión queda activa mientras esta ventana esté abierta · al cerrar la página se cierra sola</div>' +
     '</div>';
   const err = m => { $('#lkErr').textContent = m; $('#lkErr').classList.add('on'); };
   const intentar = () => {
@@ -4125,6 +4128,10 @@ function renderLock() {
   $('#lkIngresar').onclick = intentar;
   $('#lk-pass').onkeydown = e => { if (e.key === 'Enter') intentar(); };
   $('#lk-user').onkeydown = e => { if (e.key === 'Enter') $('#lk-pass').focus(); };
+  /* Anti-autocompletado: la clave arranca como texto y recién al enfocarla se
+     vuelve type=password → el navegador no puede escribirla solo */
+  const lkPass = $('#lk-pass');
+  lkPass.addEventListener('focus', () => { lkPass.type = 'password'; }, { once: true });
   $$('#lock .lock-chip').forEach(ch => ch.onclick = () => {
     const u = buscarUsuario(ch.dataset.u);
     if (!usuarioActivo(u)) return;
@@ -8270,6 +8277,20 @@ function renderDriveButton() {
     : 'Conectar con Google Drive · sincronización y respaldo en la cuenta del depósito (frimaraldap1914@gmail.com)';
 }
 
+/* ---------- Conexión automática (silenciosa) ---------- */
+/* Al iniciar la app intenta conectar con Drive sin ventanas ni clics: si este
+   navegador ya autorizó la app y tiene la sesión de Google activa, queda
+   conectado solo (con sincronización automática andando). Si no puede, no
+   muestra nada: se conecta manualmente con el botón Drive. */
+async function autoConectarDrive() {
+  if (!gConfigured() || gConnected() || gOriginProblem()) return false;
+  try { await gAuth(false); } catch (e) { return false; }
+  try { await gEnsureTree(); } catch (e) { /* la estructura se crea en la próxima operación */ }
+  toast('Google Drive conectado', 'ok', 'Conexión automática al iniciar · cuenta ' + GState.email);
+  renderCurrentViewSafe();
+  return true;
+}
+
 /* ---------- Errores de Google con mensaje accionable ---------- */
 function gErr(e) {
   const m = String((e && e.message) || e || 'Error desconocido');
@@ -8805,6 +8826,9 @@ function iniciarApp() {
   const btnDrive = $('#btnDrive');
   if (btnDrive) btnDrive.onclick = () => openDriveModal();
   if (typeof bindGoogleOnce === 'function') bindGoogleOnce();
+  /* Conexión automática con Google Drive: intento silencioso al entrar (sin
+     ventanas); si el navegador no tiene sesión de Google activa no hace nada */
+  if (typeof autoConectarDrive === 'function' && puede('drive_leer')) autoConectarDrive();
   $('#btnExportMenu').onclick = e => { e.stopPropagation(); $('#exportDrop').classList.toggle('open'); };
   document.addEventListener('click', () => $('#exportDrop').classList.remove('open'));
   $('#btnExportXlsx').onclick = exportarXLSX;
