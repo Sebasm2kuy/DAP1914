@@ -2,7 +2,7 @@
 
 Aplicación web completa (WMS) que reemplaza la planilla **Control_Stock_Deposito_Fiscal_CLIENTES.xlsx**: mismos datos, mismas reglas de negocio, operación en tiempo real.
 
-**Arquitectura monousuario sin servidores**: la app corre 100% en el navegador y usa la cuenta de Google del depósito — **frimaraldap1914@gmail.com** — como base de datos y respaldo (**Google Drive**) y para enviar correos (**Gmail**). Sin Supabase, sin Firebase, sin backend: solo un `index.html` y tu cuenta de Google.
+**Arquitectura sin servidores**: la app corre 100% en el navegador y usa la cuenta de Google del depósito — **frimaraldap1914@gmail.com** — como base de datos y respaldo (**Google Drive**) y para enviar correos (**Gmail**). Sin Supabase, sin Firebase, sin backend: solo un `index.html` y tu cuenta de Google. El acceso se controla con **usuarios y permisos** (ver abajo).
 
 ```
 ┌─────────────────────────────  Navegador (cualquier PC / celular)  ─────────────────────────────┐
@@ -96,6 +96,19 @@ El token de acceso vive únicamente en la sesión del navegador (nunca se sube a
 
 ---
 
+## Usuarios y permisos
+
+Al abrir la app aparece la **pantalla de acceso**: se elige el usuario y (si tiene) se escribe la contraseña. La sesión queda abierta en ese navegador hasta «Cerrar sesión» (botón al pie del menú lateral).
+
+- **Sebastián** (`sebastian`, con contraseña) — **acceso total**: los 13 permisos + **panel administrativo «Usuarios»** para crear cuentas y asignar permisos a medida. Su cuenta no se puede eliminar ni desactivar, y siempre conserva acceso total.
+- **Invitado** (sin contraseña, un clic) — **solo consulta**: ve todas las vistas, imprime y exporta (comprobantes, listados, reportes, CSV, Excel) y puede **descargar los datos actualizados desde Drive**, pero no modifica nada: los botones de escritura están ocultos y las acciones bloqueadas con aviso.
+
+El **panel «Usuarios»** (visible solo para administradores, en Administración → Usuarios) permite **crear, editar, activar/desactivar y eliminar cuentas**, con contraseña o de acceso directo, y asignar **13 permisos granulares**: movimientos (incluye anular y conteos), traslados, carga rápida, pallets vacíos, catálogos (clientes/productos/posiciones), reservas, aduana/DUA, imprimir y exportar, enviar correos, descargar de Drive, respaldar en Drive, configuración e importación, y administración total. Cada inicio de sesión, cierre, creación y cambio de permisos queda en la **Auditoría** con el usuario responsable.
+
+Las contraseñas se guardan como **hash SHA-256** (nunca en texto plano) dentro de los datos de la app; con ellas, el respaldo JSON y los archivos de Drive incluyen las cuentas. Aclaración honesta: al no haber servidor, este control es de **gestión operativa** (qué puede hacer cada persona en la app), no criptografía contra alguien que manipule el navegador a nivel técnico.
+
+---
+
 ## Impresión y trazabilidad operativa
 
 - **Comprobante de ingreso / egreso / traslado** — vista de impresión limpia (Ctrl+P → PDF) con encabezado del depósito, **fecha y hora de emisión**, cliente, **DUA y/o contenedor**, detalle por posición con **sector (Rack A / Rack B / Piso)**, N.º stock, SKU/producto, medida, cantidades, total y **espacio de firmas** (Operario · Conforme/Chofer · Control depósito). Se emite: al confirmar un ingreso («Registrar e imprimir comprobante» en el formulario de movimiento), en la **carga rápida por contenedor** (junto a las etiquetas de lote), en el **traslado** (ambos movimientos), desde cada fila de **Movimientos** y desde la **trazabilidad de un DUA** (comprobante de todos sus ingresos). El mismo comprobante sale en PDF al enviarlo por correo.
@@ -125,7 +138,7 @@ El token de acceso vive únicamente en la sesión del navegador (nunca se sube a
 - **Catálogo de Productos / SKUs** — maestro que se completa al vuelo y autocompleta formularios.
 - **Anulación controlada** con ajuste de reversa + motivo; ediciones con motivo de corrección.
 - **Reservas / bloqueos**, **conteo cíclico**, **etiquetas con QR**, **remitos**, **reportes por período** (CSV/PDF/correo).
-- **Auditoría completa** de operaciones y **roles** operario/administrador con **PIN** opcional.
+- **Auditoría completa** de operaciones **con usuario responsable**, y **usuarios con permisos granulares** (invitado de solo consulta, cuentas con contraseña, panel administrativo).
 - **Respaldos automáticos** (snapshots) + respaldo JSON manual + **respaldos fechados en Drive**.
 - **Importación/exportación Excel** (SheetJS) y **modo offline completo**: la app funciona sin conexión; al reconectar, sincroniza.
 - **Búsqueda global instantánea** (Ctrl+K), filtros en todas las tablas, modo claro/oscuro, diseño responsive (móvil, tablet, escritorio).
@@ -141,7 +154,7 @@ El token de acceso vive únicamente en la sesión del navegador (nunca se sube a
 ## Verificación
 
 - KPIs de la app 1:1 con la planilla original: **6.247 cajas · 98 posiciones ocupadas · 9 SKU con saldo · 99 posiciones con movimientos · 107 líneas de Posiciones · saldo de pallets −30**.
-- Suite de pruebas automática incluida: 86 checks de núcleo (generador PDF con tabla xref verificada byte a byte y **límites de página validados texto por texto**, constructor MIME de Gmail con roundtrip de adjuntos, codificación base64/WinAnsi, constructores de comprobante/trazabilidad/listado/reporte del día y filtros de pallets) + 64 checks de navegador (Playwright: las 12 vistas, modales Drive/correo/configuración/trazabilidad/listado/reporte del día, flujo completo egreso → reporte del día, generación de PDF en página validada con poppler, exportación Excel, persistencia, cero errores de consola) + chequeo responsive en 375/768/1360 px.
+- Suite de pruebas automática incluida: 104 checks de núcleo (SHA-256 con vectores NIST, permisos y sesión, bootstrap de usuarios, generador PDF con tabla xref verificada byte a byte y **límites de página validados texto por texto**, constructor MIME de Gmail con roundtrip de adjuntos, codificación base64/WinAnsi, constructores de comprobante/trazabilidad/listado/reporte del día y filtros de pallets) + 112 checks de navegador (Playwright: pantalla de acceso con rechazo de clave incorrecta, invitado sin contraseña con botones de escritura ocultos y acciones bloqueadas, sesión persistente, las 13 vistas, modales Drive/correo/configuración/trazabilidad/listado/reporte del día, flujo completo egreso → reporte del día, panel administrativo con alta/login/permisos/desactivación/baja de usuarios, generación de PDF en página validada con poppler, exportación Excel, persistencia, cero errores de consola) + chequeo responsive en 375/768/1360 px **incluida la pantalla de acceso**.
 
 ## Estructura del repositorio
 

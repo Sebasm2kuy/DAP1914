@@ -665,6 +665,79 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
   .gset-origin code { font-size: 11.5px; word-break: break-all; }
 }
 
+/* ============================================================
+   USUARIOS · pantalla de acceso, chip de sesión, permisos
+   ============================================================ */
+.lock {
+  position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center;
+  padding: 18px; overflow: auto;
+  background:
+    radial-gradient(1100px 500px at 12% -8%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
+    radial-gradient(900px 500px at 105% 108%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 55%),
+    var(--bg);
+}
+.lock-card {
+  width: 100%; max-width: 430px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 18px; padding: 28px 26px 20px; box-shadow: 0 24px 70px -30px rgba(15, 35, 68, .45);
+  display: flex; flex-direction: column; gap: 14px; margin: auto;
+}
+.lock-brand { display: flex; align-items: center; gap: 12px; }
+.lock-brand .brand-logo { width: 42px; height: 42px; border-radius: 11px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; }
+.lock-brand .brand-logo svg { width: 24px; height: 24px; }
+.lock-title { font-size: 17px; font-weight: 800; letter-spacing: .2px; color: var(--text); }
+.lock-subtitle { font-size: 12.5px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .8px; }
+.lock-lead { font-size: 13px; color: var(--text-2); font-weight: 600; }
+.lock-chips { display: flex; flex-direction: column; gap: 8px; }
+.lock-chip {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;
+  color: var(--text); transition: border-color .15s, background .15s, transform .06s;
+}
+.lock-chip:hover { border-color: var(--accent); background: var(--accent-soft); }
+.lock-chip:active { transform: scale(.995); }
+.lc-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 800; font-size: 15px; display: flex; align-items: center; justify-content: center; flex: none; }
+.lc-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.lc-txt b { font-size: 14px; }
+.lc-txt small { font-size: 11.5px; color: var(--text-3); }
+.lc-arrow { font-size: 12px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.lock-sep { display: flex; align-items: center; gap: 12px; color: var(--text-3); font-size: 11.5px; font-weight: 600; }
+.lock-sep::before, .lock-sep::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.lock-form { display: flex; flex-direction: column; gap: 9px; }
+.lock-form input {
+  border: 1px solid var(--border-2); border-radius: 10px; padding: 11px 13px; font-size: 14px;
+  background: var(--surface); color: var(--text); outline: none;
+}
+.lock-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.lock-btn { justify-content: center; padding: 11px 14px; font-size: 14px; }
+.lock-err { display: none; background: var(--danger-soft); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; font-weight: 600; line-height: 1.45; }
+.lock-err.on { display: block; }
+.lock-foot { font-size: 11px; color: var(--text-3); text-align: center; line-height: 1.5; }
+
+/* Chip de usuario activo en el pie de la barra lateral */
+.user-chip { display: flex; align-items: center; gap: 9px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 8px 8px 8px 10px; margin-bottom: 9px; }
+.uc-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; flex: none; }
+.uc-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.uc-txt b { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.uc-txt small { font-size: 10.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sf-stats { display: flex; flex-direction: column; gap: 2px; }
+
+/* Grilla de permisos (modal de usuario) */
+.perm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px 16px; margin-top: 8px; }
+.perm-group { border: 1px solid var(--border); border-radius: 11px; padding: 10px 12px; background: var(--surface-2); }
+.perm-group-t { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; color: var(--text-3); margin-bottom: 7px; }
+.perm-line { display: flex; gap: 9px; align-items: flex-start; padding: 4px 0; }
+.perm-line input { margin-top: 3px; accent-color: var(--accent); flex: none; }
+.perm-line b { font-size: 12.5px; display: block; }
+.perm-line small { font-size: 11px; color: var(--text-3); line-height: 1.35; display: block; }
+.perm-chip { display: inline-block; background: var(--accent-soft); color: var(--accent-text); border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 700; margin: 1px 2px 1px 0; }
+[data-theme="dark"] .perm-chip { color: #9cc7f5; }
+
+@media (max-width: 640px) {
+  .lock-card { padding: 22px 18px 16px; }
+  .perm-grid { grid-template-columns: 1fr; }
+}
+@media print { .lock { display: none !important; } }
+
 </style>
 </head>
 <body>
@@ -727,9 +800,13 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
       <section class="view" id="view-reservas"></section>
       <section class="view" id="view-reportes"></section>
       <section class="view" id="view-auditoria"></section>
+      <section class="view" id="view-usuarios"></section>
     </main>
   </div>
 </div>
+
+<!-- ══════════ Pantalla de acceso (login) ══════════ -->
+<div class="lock" id="lock" style="display:none"></div>
 
 <!-- ══════════ Área de impresión (etiquetas, remitos, reportes) ══════════ -->
 <div id="printArea" style="display:none"></div>
@@ -3224,13 +3301,14 @@ let DB = null;
 function emptyDB() {
   return {
     version: 2, movimientos: [], clientes: [], productos: [], pallets: [],
-    reservas: [], auditoria: [], snapshots: [],
+    reservas: [], auditoria: [], snapshots: [], usuarios: [],
     aduanaEstado: {}, // { dua: { estado, obs } }
     config: { rol: 'admin', pinHash: null, alertaPermanencia: 45 },
   };
 }
 
 function saveDB() {
+  if (typeof ensureUsuarios === 'function') ensureUsuarios();
   try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); }
   catch (e) { toast('No se pudo guardar en el almacenamiento local: ' + e.message, 'error'); }
 }
@@ -3245,6 +3323,7 @@ function loadDB() {
   DB.productos = Array.isArray(DB.productos) ? DB.productos : [];
   DB.pallets = Array.isArray(DB.pallets) ? DB.pallets : [];
   DB.reservas = Array.isArray(DB.reservas) ? DB.reservas : [];
+  DB.usuarios = Array.isArray(DB.usuarios) ? DB.usuarios : [];
   DB.auditoria = Array.isArray(DB.auditoria) ? DB.auditoria : [];
   DB.snapshots = Array.isArray(DB.snapshots) ? DB.snapshots : [];
   DB.aduanaEstado = DB.aduanaEstado && typeof DB.aduanaEstado === 'object' ? DB.aduanaEstado : {};
@@ -3253,12 +3332,15 @@ function loadDB() {
 function dbIsEmpty() { return DB.movimientos.length === 0 && DB.clientes.length === 0 && DB.pallets.length === 0; }
 
 function loadSeed() {
+  const usuariosPrevios = DB && Array.isArray(DB.usuarios) ? DB.usuarios : [];
   DB = emptyDB();
   DB.movimientos = WMS_SEED.movimientos.map(m => ({ id: uid(), ...m }));
   DB.clientes = WMS_SEED.clientes.map(c => ({ id: uid(), ...c }));
   DB.productos = (WMS_SEED.productos || []).map(p => ({ id: uid(), ...p }));
   DB.pallets = WMS_SEED.pallets.map(p => ({ id: uid(), ...p }));
   syncCatalogoFromMovs();
+  DB.usuarios = usuariosPrevios;
+  ensureUsuarios();
   saveDB();
 }
 
@@ -3295,7 +3377,11 @@ function catalogoSkuUsado(cat) {
 
 /* ---------- Auditoría de cambios ---------- */
 function auditar(tipo, detalle) {
-  DB.auditoria.push({ ts: new Date().toISOString(), tipo, detalle, rol: DB.config.rol || 'admin' });
+  DB.auditoria.push({
+    ts: new Date().toISOString(), tipo, detalle,
+    rol: DB.config.rol || 'admin',
+    usuario: (typeof SESION !== 'undefined' && SESION) ? (SESION.nombre || SESION.usuario) : null,
+  });
   if (DB.auditoria.length > 500) DB.auditoria.splice(0, DB.auditoria.length - 500);
 }
 function fmtDateTime(iso) {
@@ -3322,8 +3408,16 @@ function restaurarSnapshot(snap) {
   invalidate(); saveDB();
 }
 
-/* ---------- Roles y permisos (operario / administrador) ---------- */
-function esAdmin() { return (DB.config && DB.config.rol) !== 'operario'; }
+/* ---------- Roles y permisos (usuarios con permisos granulares) ---------- */
+/* esAdmin/puede/sinPermiso viven en app_auth.js; esAdmin delega en la sesión activa */
+function esAdmin() { return typeof puede === 'function' && puede('admin'); }
+/* Guardia central de permisos: true si pasa, o bloquea con aviso */
+function permisoObloqueo(perm) {
+  if (typeof puede !== 'function' || puede(perm)) return true;
+  if (typeof sinPermiso === 'function') sinPermiso(perm);
+  else toast('Tu usuario no tiene permiso para esta acción', 'warn');
+  return false;
+}
 async function sha256Hex(txt) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -3562,6 +3656,7 @@ function toast(msg, type, sub) {
 /* ---------- Sistema de modales ---------- */
 let _modalOnClose = null;
 function openModal(opts) {
+  if (opts.perm && !permisoObloqueo(opts.perm)) return false;
   const box = $('#modalBox');
   box.className = 'modal' + (opts.size === 'wide' ? ' wide' : '') + (opts.size === 'slim' ? ' slim' : '');
   box.innerHTML =
@@ -3609,6 +3704,7 @@ const VIEWS = [
   { id: 'reservas', name: 'Reservas', icon: 'lock', sub: 'Bloqueos de mercadería' },
   { id: 'reportes', name: 'Reportes', icon: 'chart', sub: 'Rotación y ocupación por período' },
   { id: 'auditoria', name: 'Auditoría', icon: 'hist', sub: 'Historial de cambios' },
+  { id: 'usuarios', name: 'Usuarios', icon: 'users', sub: 'Cuentas y permisos de acceso' },
 ];
 let currentView = 'panel';
 const viewFilters = {}; // filtros por vista aplicados desde búsqueda/acciones
@@ -3626,12 +3722,21 @@ function renderNav() {
     '<div class="nav-label">Depósito</div>' +
     navItem('pal') + navItem('reservas') +
     '<div class="nav-label">Administración</div>' +
-    navItem('reportes') + navItem('auditoria');
+    navItem('reportes') + navItem('auditoria') +
+    (typeof puede === 'function' && puede('admin') ? navItem('usuarios') : '');
   $$('#mainNav .nav-item').forEach(btn => btn.onclick = () => { setView(btn.dataset.view); closeSidebar(); });
+  const u = (typeof SESION !== 'undefined' && SESION) ? SESION : null;
+  const inicial = u ? ((u.nombre || u.usuario || '?').trim()[0] || '?').toUpperCase() : '?';
   $('#sidebarFoot').innerHTML =
-    '<div>Ultima actualización: <b>' + fmtDate(todayISO()) + '</b></div>' +
-    '<div>Registros: <b id="navRegCount">0</b> movimientos</div>' +
-    '<div>Rol: <b id="navRol"></b></div>';
+    '<div class="user-chip">' +
+      '<span class="uc-avatar">' + esc(inicial) + '</span>' +
+      '<span class="uc-txt"><b>' + esc(u ? (u.nombre || u.usuario) : '—') + '</b><small>' + esc(rolTextoSesion()) + '</small></span>' +
+      '<button class="icon-btn" id="btnLogout" title="Cerrar sesión y volver a la pantalla de acceso">' + ICONS.logout + '</button>' +
+    '</div>' +
+    '<div class="sf-stats"><div>Ultima actualización: <b>' + fmtDate(todayISO()) + '</b></div>' +
+    '<div>Registros: <b id="navRegCount">0</b> movimientos</div></div>';
+  const lo = $('#btnLogout');
+  if (lo) lo.onclick = () => cerrarSesion();
 }
 function navItem(id) {
   const v = VIEWS.find(x => x.id === id);
@@ -3646,10 +3751,10 @@ function renderNavCounts() {
     cli: String(DB.clientes.length), prod: String(DB.productos.length),
     pal: String(k.saldoPallets), reservas: String(k.reservasActivas || ''),
     reportes: '', auditoria: String(DB.auditoria.length),
+    usuarios: String((DB.usuarios || []).length),
   };
   $$('#mainNav .count').forEach(el => { el.textContent = counts[el.dataset.count] || ''; });
   const rc = $('#navRegCount'); if (rc) rc.textContent = fmtInt(k.totalMovs);
-  const nr = $('#navRol'); if (nr) nr.textContent = esAdmin() ? 'Administrador' : 'Operario';
 }
 
 const RENDERERS = {};
@@ -3670,6 +3775,7 @@ function setView(id, filterPatch) {
 function renderCurrentView() {
   const fn = RENDERERS[currentView];
   if (fn) fn(viewFilters[currentView] || {});
+  if (typeof aplicarPermisosUI === 'function') aplicarPermisosUI(); /* ocultar botones sin permiso tras cada render */
 }
 
 /* ---------- Búsqueda global instantánea ---------- */
@@ -3760,6 +3866,7 @@ function closeSidebar() { $('#sidebar').classList.remove('open'); }
 
 /* ---------- Impresión (etiquetas, remitos, reportes) ---------- */
 function imprimirHTML(titulo, bodyHTML) {
+  if (!permisoObloqueo('imprimir')) return;
   const area = $('#printArea');
   if (!area) { toast('No se pudo preparar la impresión', 'error'); return; }
   area.innerHTML = '<div class="print-doc"><div class="print-head"><div class="print-logo">' + ICONS.logo + '</div>' +
@@ -3775,6 +3882,7 @@ function csvCell(v) {
   return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 function descargarCSV(nombre, cabeceras, filas) {
+  if (!permisoObloqueo('imprimir')) return;
   const lines = [cabeceras.map(csvCell).join(';')].concat(filas.map(f => f.map(csvCell).join(';')));
   const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
@@ -3784,6 +3892,457 @@ function descargarCSV(nombre, cabeceras, filas) {
   URL.revokeObjectURL(a.href);
   toast('CSV exportado', 'ok', nombre);
 }
+
+</script>
+<script>
+/* ============================================================
+   USUARIOS, PERMISOS Y SESIÓN
+   - sha256Texto: SHA-256 puro en JS (sin Web Crypto, testeable)
+   - PERMISOS: catálogo granular (13 permisos agrupados)
+   - SESION + pantalla de login (#lock) + cierre de sesión
+   - Panel administrativo: vista «usuarios» (alta/edición/baja
+     de cuentas con permisos a medida)
+   ============================================================ */
+
+/* ---------- SHA-256 puro (FIPS 180-4), síncrono ---------- */
+const _SHA256_K = [
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+];
+function sha256Texto(txt) {
+  /* UTF-8 → bytes */
+  let bytes;
+  const s = String(txt == null ? '' : txt);
+  if (typeof TextEncoder !== 'undefined') bytes = Array.from(new TextEncoder().encode(s));
+  else { const e = unescape(encodeURIComponent(s)); bytes = []; for (let i = 0; i < e.length; i++) bytes.push(e.charCodeAt(i)); }
+  const l = bytes.length;
+  const hi = Math.floor(l / 536870912), lo = (l * 8) >>> 0;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  bytes.push((hi >>> 24) & 255, (hi >>> 16) & 255, (hi >>> 8) & 255, hi & 255,
+    (lo >>> 24) & 255, (lo >>> 16) & 255, (lo >>> 8) & 255, lo & 255);
+  let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a,
+    h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+  const w = new Array(64);
+  const rr = (x, n) => ((x >>> n) | (x << (32 - n))) >>> 0;
+  for (let off = 0; off < bytes.length; off += 64) {
+    for (let i = 0; i < 16; i++) w[i] = ((bytes[off + i * 4] << 24) | (bytes[off + i * 4 + 1] << 16) | (bytes[off + i * 4 + 2] << 8) | bytes[off + i * 4 + 3]) >>> 0;
+    for (let i = 16; i < 64; i++) {
+      const s0 = (rr(w[i - 15], 7) ^ rr(w[i - 15], 18) ^ (w[i - 15] >>> 3)) >>> 0;
+      const s1 = (rr(w[i - 2], 17) ^ rr(w[i - 2], 19) ^ (w[i - 2] >>> 10)) >>> 0;
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+    }
+    let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
+    for (let i = 0; i < 64; i++) {
+      const S1 = (rr(e, 6) ^ rr(e, 11) ^ rr(e, 25)) >>> 0;
+      const ch = ((e & f) ^ (~e & g)) >>> 0;
+      const t1 = (h + S1 + ch + _SHA256_K[i] + w[i]) >>> 0;
+      const S0 = (rr(a, 2) ^ rr(a, 13) ^ rr(a, 22)) >>> 0;
+      const maj = ((a & b) ^ (a & c) ^ (b & c)) >>> 0;
+      const t2 = (S0 + maj) >>> 0;
+      h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0;
+    h4 = (h4 + e) >>> 0; h5 = (h5 + f) >>> 0; h6 = (h6 + g) >>> 0; h7 = (h7 + h) >>> 0;
+  }
+  return [h0, h1, h2, h3, h4, h5, h6, h7].map(x => x.toString(16).padStart(8, '0')).join('');
+}
+function hashClave(clave) { return sha256Texto('wms1914:' + String(clave == null ? '' : clave)); }
+
+/* ---------- Catálogo de permisos ---------- */
+const PERMISOS = [
+  { k: 'mov', t: 'Movimientos', d: 'Registrar, editar y anular ingresos, egresos y ajustes · conteos cíclicos', g: 'Operación' },
+  { k: 'traslado', t: 'Traslados', d: 'Mover mercadería entre posiciones', g: 'Operación' },
+  { k: 'carga', t: 'Carga rápida', d: 'Carga rápida por contenedor con etiquetas de lote', g: 'Operación' },
+  { k: 'pallets', t: 'Pallets vacíos', d: 'Registrar ingresos y egresos de pallets', g: 'Operación' },
+  { k: 'abm', t: 'Catálogos', d: 'Clientes, productos y posiciones: alta, edición y baja', g: 'Inventario' },
+  { k: 'reservas', t: 'Reservas', d: 'Bloquear y liberar mercadería reservada', g: 'Inventario' },
+  { k: 'aduana', t: 'Aduana / DUA', d: 'Estados documentales y documentación de DUAs', g: 'Inventario' },
+  { k: 'imprimir', t: 'Imprimir y exportar', d: 'Comprobantes, etiquetas, listados, reportes, CSV, Excel y respaldo JSON', g: 'Salidas' },
+  { k: 'correo', t: 'Enviar correos', d: 'Reportes y comprobantes por correo con adjuntos', g: 'Salidas' },
+  { k: 'drive_leer', t: 'Descargar de Drive', d: 'Traer los datos actualizados desde Google Drive (solo lectura)', g: 'Datos' },
+  { k: 'drive', t: 'Respaldar en Drive', d: 'Guardar, respaldar y sincronizar automáticamente con Google Drive', g: 'Datos' },
+  { k: 'config', t: 'Configuración e importación', d: 'Importar Excel, restaurar respaldos y configurar la aplicación', g: 'Datos' },
+  { k: 'admin', t: 'Administración total', d: 'Acceso completo + panel de usuarios y permisos', g: 'Sistema' },
+];
+const PERM_GRUPOS = ['Operación', 'Inventario', 'Salidas', 'Datos', 'Sistema'];
+function permisoInfo(k) { return PERMISOS.find(p => p.k === k) || { k, t: k, d: '', g: 'Otros' }; }
+function permisosTotales() { const o = {}; for (const p of PERMISOS) o[p.k] = 1; return o; }
+
+/* ---------- Usuarios por defecto (primer arranque / migración) ----------
+   Sebastián: acceso total. Invitado: sin contraseña, solo consulta
+   (ver, imprimir, exportar y descargar datos de Drive). ---------- */
+const CLAVE_SEBASTIAN_HASH = 'a37d678340fe4b2706ff8de5d07d0263926342dbbcca4d23c314872d023dcf53';
+function usuariosDefault() {
+  return [
+    { id: 'u_admin', nombre: 'Sebastián', usuario: 'sebastian', clave: CLAVE_SEBASTIAN_HASH, sinClave: false,
+      perms: permisosTotales(), activo: true, builtIn: 'admin', creado: todayISO(), ultimoAcceso: null },
+    { id: 'u_invitado', nombre: 'Invitado · consulta', usuario: 'invitado', clave: null, sinClave: true,
+      perms: { imprimir: 1, correo: 1, drive_leer: 1 }, activo: true, builtIn: 'invitado', creado: todayISO(), ultimoAcceso: null },
+  ];
+}
+function ensureUsuarios() {
+  if (!DB) return;
+  if (!Array.isArray(DB.usuarios)) DB.usuarios = [];
+  if (!DB.usuarios.length) DB.usuarios = usuariosDefault();
+  if (!DB.usuarios.some(u => u.builtIn === 'admin')) {
+    /*Nunca dejar al sistema sin administrador*/
+    const def = usuariosDefault();
+    DB.usuarios.unshift(def[0]);
+  }
+}
+
+/* ---------- Sesión ---------- */
+const LS_SESION = 'wms-df-sesion-v1';
+let SESION = null;
+
+function buscarUsuario(usuario) {
+  const n = normKey(String(usuario || ''));
+  return (DB.usuarios || []).find(u => normKey(u.usuario) === n) || null;
+}
+function usuarioActivo(u) { return u && u.activo !== false; }
+/*¿La clave presentada es correcta para el usuario?*/
+function claveCorrecta(u, clave) {
+  if (!u) return false;
+  if (u.sinClave || !u.clave) return true; /* cuenta sin contraseña */
+  if (!clave) return false;
+  return hashClave(clave) === u.clave;
+}
+function permisosDe(u) {
+  if (!u) return {};
+  if (u.perms && u.perms.admin) return permisosTotales();
+  return u.perms || {};
+}
+function puede(perm) {
+  if (!SESION) return false;
+  if (SESION.builtIn === 'admin') return true; /* el administrador histórico siempre tiene todo */
+  return !!permisosDe(SESION)[perm];
+}
+function sinPermiso(perm) {
+  const info = permisoInfo(perm);
+  toast('Tu usuario no tiene permiso para esta acción', 'warn',
+    'Permiso requerido: ' + info.t + ' · pedile a Sebastián que lo habilite desde Usuarios');
+  auditar('Permiso denegado', info.t + ' (' + perm + ') · usuario ' + ((typeof SESION !== 'undefined' && SESION) ? SESION.usuario : '¿?'));
+}
+function nombreUsuarioSesion() {
+  if (typeof SESION !== 'undefined' && SESION) return SESION.nombre || SESION.usuario || 'Usuario';
+  return (DB.config && DB.config.rol) === 'operario' ? 'Operario' : 'Administrador';
+}
+function rolTextoSesion() {
+  if (!SESION) return '—';
+  if (SESION.builtIn === 'admin' || permisosDe(SESION).admin) return 'Administrador total';
+  if (SESION.builtIn === 'invitado') return 'Solo consulta';
+  const n = PERMISOS.filter(p => p.k !== 'admin' && permisosDe(SESION)[p.k]).length;
+  return n + ' de ' + (PERMISOS.length - 1) + ' permisos';
+}
+
+/* ---------- Login / logout ---------- */
+function sesionGuardar(u) {
+  try { localStorage.setItem(LS_SESION, JSON.stringify({ uid: u.id, ts: new Date().toISOString() })); } catch (e) { /* noop */ }
+}
+/*Restaura la sesión guardada en este navegador (recarga). Devuelve true si entró directo.*/
+function sesionRestaurada() {
+  try {
+    const raw = localStorage.getItem(LS_SESION);
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    const u = (DB.usuarios || []).find(x => x.id === s.uid);
+    if (!usuarioActivo(u)) { localStorage.removeItem(LS_SESION); return false; }
+    SESION = u;
+    return true;
+  } catch (e) { return false; }
+}
+function loginComo(u, silencioso) {
+  SESION = u;
+  sesionGuardar(u);
+  u.ultimoAcceso = new Date().toISOString();
+  auditar(silencioso ? 'Sesión restaurada' : 'Inicio de sesión', u.nombre + ' (@' + u.usuario + ')');
+  saveDB();
+  ocultarLock();
+  if (typeof iniciarApp === 'function') iniciarApp();
+}
+/*Intenta entrar con usuario+clave. Devuelve null si OK o el mensaje de error.*/
+function intentarLogin(usuario, clave) {
+  const u = buscarUsuario(usuario);
+  if (!u || !usuarioActivo(u)) return 'Usuario no encontrado o inactivo. Verificá el nombre o pedí a Sebastián que lo active.';
+  if (!claveCorrecta(u, clave)) return 'Contraseña incorrecta para «' + (u.nombre || u.usuario) + '».';
+  loginComo(u, false);
+  return null;
+}
+function cerrarSesion() {
+  auditar('Cierre de sesión', nombreUsuarioSesion());
+  saveDB();
+  SESION = null;
+  try { localStorage.removeItem(LS_SESION); } catch (e) { /* noop */ }
+  location.reload();
+}
+
+/* ---------- Pantalla de login (#lock) ---------- */
+function mostrarLock() {
+  const el = $('#lock');
+  if (!el) return;
+  renderLock();
+  el.style.display = 'flex';
+}
+function ocultarLock() { const el = $('#lock'); if (el) el.style.display = 'none'; }
+function renderLock() {
+  const el = $('#lock');
+  if (!el) return;
+  const users = (DB.usuarios || []).filter(usuarioActivo);
+  const inicial = u => ((u.nombre || u.usuario || '?').trim()[0] || '?').toUpperCase();
+  el.innerHTML =
+    '<div class="lock-card">' +
+      '<div class="lock-brand"><div class="brand-logo">' + ICONS.logo + '</div>' +
+        '<div><div class="lock-title">WMS · Control Operativo</div><div class="lock-subtitle">Depósito Fiscal DAP1914</div></div></div>' +
+      '<div class="lock-lead">Elegí tu usuario para entrar</div>' +
+      '<div class="lock-chips">' + users.map(u =>
+        '<button class="lock-chip" data-u="' + esc(u.usuario) + '">' +
+          '<span class="lc-avatar">' + esc(inicial(u)) + '</span>' +
+          '<span class="lc-txt"><b>' + esc(u.nombre || u.usuario) + '</b>' +
+          '<small>' + (u.sinClave || !u.clave ? 'Sin contraseña · ' + (u.builtIn === 'invitado' ? 'solo consulta' : 'acceso directo') : 'Con contraseña') + '</small></span>' +
+          (u.sinClave || !u.clave ? '<span class="lc-arrow">Entrar ▸</span>' : '') +
+        '</button>').join('') + '</div>' +
+      '<div class="lock-sep"><span>o ingresá con usuario y contraseña</span></div>' +
+      '<div class="lock-form">' +
+        '<input id="lk-user" placeholder="Usuario" autocomplete="username" autocapitalize="none" spellcheck="false">' +
+        '<input id="lk-pass" type="password" placeholder="Contraseña" autocomplete="current-password">' +
+        '<button class="btn primary lock-btn" id="lkIngresar">' + ICONS.logout + ' Ingresar</button>' +
+      '</div>' +
+      '<div class="lock-err" id="lkErr"></div>' +
+      '<div class="lock-foot">La sesión queda abierta en este navegador · botón «Cerrar sesión» en el panel lateral</div>' +
+    '</div>';
+  const err = m => { $('#lkErr').textContent = m; $('#lkErr').classList.add('on'); };
+  const intentar = () => {
+    const e = intentarLogin($('#lk-user').value.trim(), $('#lk-pass').value);
+    if (e) { err(e); $('#lk-pass').value = ''; $('#lk-pass').focus(); }
+  };
+  $('#lkIngresar').onclick = intentar;
+  $('#lk-pass').onkeydown = e => { if (e.key === 'Enter') intentar(); };
+  $('#lk-user').onkeydown = e => { if (e.key === 'Enter') $('#lk-pass').focus(); };
+  $$('#lock .lock-chip').forEach(ch => ch.onclick = () => {
+    const u = buscarUsuario(ch.dataset.u);
+    if (!usuarioActivo(u)) return;
+    if (u.sinClave || !u.clave) { loginComo(u, false); return; }
+    $('#lk-user').value = u.usuario;
+    $('#lkErr').classList.remove('on');
+    $('#lk-pass').focus();
+  });
+}
+
+/* ---------- Visibilidad de botones según permisos ---------- */
+const BOTONES_PERM = {
+  pbNuevo: 'mov', pbTraslado: 'traslado', emptyNuevo: 'mov',
+  mvNuevo: 'mov', mvTraslado: 'traslado', mvRapida: 'carga', mvDia: 'imprimir',
+  posListado: 'imprimir', proNuevo: 'abm', proCsv: 'imprimir', cliNuevo: 'abm',
+  aduCsv: 'imprimir', aduEstado: 'aduana',
+  palNuevo: 'pallets', resNuevo: 'reservas',
+  repCsv: 'imprimir', repPrint: 'imprimir', repMail: 'correo',
+  audCsv: 'imprimir', audClear: 'admin', stkConteo: 'mov',
+  btnImport: 'config', btnExportMenu: 'imprimir', btnSettings: 'config', btnDrive: 'drive_leer',
+};
+function aplicarPermisosUI() {
+  for (const [id, perm] of Object.entries(BOTONES_PERM)) {
+    const b = document.getElementById(id);
+    if (b) b.style.display = puede(perm) ? '' : 'none';
+  }
+}
+
+/* ============================================================
+   PANEL ADMINISTRATIVO · Vista «usuarios»
+   ============================================================ */
+RENDERERS.usuarios = function () {
+  const el = $('#view-usuarios');
+  if (!el) return;
+  if (!puede('admin')) {
+    el.innerHTML = viewHead('Usuarios y permisos', 'Panel administrativo') +
+      '<div class="alert warn">' + ICONS.alert + '<div><b>No tenés permiso de administración.</b> Esta sección es solo para el administrador del sistema.</div></div>';
+    return;
+  }
+  const users = DB.usuarios.slice().sort((a, b) => (a.builtIn === 'admin' ? -1 : b.builtIn === 'admin' ? 1 : (a.builtIn === 'invitado' ? -1 : b.builtIn === 'invitado' ? 1 : 0)) || String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
+  const activos = users.filter(usuarioActivo).length;
+  const totales = users.filter(u => permisosDe(u).admin).length;
+  const ult = users.filter(u => u.ultimoAcceso).sort((a, b) => String(b.ultimoAcceso).localeCompare(String(a.ultimoAcceso)))[0];
+  el.innerHTML =
+    viewHead('Usuarios y permisos', 'Panel administrativo: cuentas de acceso al sistema con permisos granulares. Los cambios aplican desde el próximo inicio de sesión de cada usuario.',
+      '<button class="btn primary" id="usrNuevo">' + ICONS.plus + ' Nuevo usuario</button>') +
+    '<div class="kpi-grid">' +
+      '<div class="kpi"><div class="kpi-label">Usuarios</div><div class="kpi-value">' + users.length + '</div><div class="kpi-sub">' + activos + ' activos</div></div>' +
+      '<div class="kpi ok"><div class="kpi-label">Acceso total</div><div class="kpi-value">' + totales + '</div><div class="kpi-sub">Con permiso de administración</div></div>' +
+      '<div class="kpi"><div class="kpi-label">Último acceso</div><div class="kpi-value" style="font-size:16px">' + (ult ? esc(fmtDateTime(ult.ultimoAcceso)) : '—') + '</div><div class="kpi-sub">' + (ult ? esc(ult.nombre || ult.usuario) : 'Sin accesos todavía') + '</div></div>' +
+    '</div>' +
+    '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Usuario</th><th>Permisos</th><th>Estado</th><th>Último acceso</th><th></th></tr></thead><tbody>' +
+      users.map(u => {
+        const p = permisosDe(u);
+        const self = SESION && SESION.id === u.id;
+        const lista = permisosDe(u).admin
+          ? '<span class="badge accent">Acceso total</span>'
+          : PERMISOS.filter(x => x.k !== 'admin' && p[x.k]).map(x => '<span class="perm-chip">' + esc(x.t) + '</span>').join(' ') || '<span class="muted">Sin permisos (solo consulta)</span>';
+        return '<tr>' +
+          '<td><b>' + esc(u.nombre || '—') + '</b><br><small class="muted">@' + esc(u.usuario) + (u.builtIn ? ' · cuenta del sistema' : '') + (self ? ' · <b>vos</b>' : '') + '</small></td>' +
+          '<td style="max-width:340px">' + lista + '</td>' +
+          '<td>' + (usuarioActivo(u) ? '<span class="badge ok">Activo</span>' : '<span class="badge neutral">Inactivo</span>') + '</td>' +
+          '<td class="mono" style="white-space:nowrap">' + (u.ultimoAcceso ? esc(fmtDateTime(u.ultimoAcceso)) : '—') + '</td>' +
+          '<td><div class="row-actions">' +
+            '<button class="btn sm" data-uedit="' + esc(u.id) + '">' + ICONS.edit + ' Editar</button>' +
+            '<button class="btn sm" data-utog="' + esc(u.id) + '"' + (self ? ' disabled title="No podés desactivar tu propia cuenta"' : '') + '>' + (usuarioActivo(u) ? 'Desactivar' : 'Activar') + '</button>' +
+            (u.builtIn || self ? '' : '<button class="btn sm danger" data-udel="' + esc(u.id) + '">' + ICONS.trash + ' Eliminar</button>') +
+          '</div></td></tr>';
+      }).join('') +
+    '</tbody></table></div>' +
+    '<div class="alert info" style="margin-top:14px">' + ICONS.shield + '<div><b>Cómo funciona el acceso.</b> Cada persona entra con su usuario desde la pantalla de inicio; la sesión queda abierta en ese navegador hasta «Cerrar sesión». El usuario <b>Invitado</b> entra sin contraseña solo para <b>ver, imprimir y exportar</b>; ajustale los permisos desde «Editar» si querés algo distinto. La cuenta de Sebastián no se puede eliminar ni desactivar, y siempre conserva acceso total.</div></div>';
+  $('#usrNuevo').onclick = () => openUsuarioModal(null);
+  $$('#view-usuarios [data-uedit]').forEach(b => b.onclick = () => openUsuarioModal(DB.usuarios.find(u => u.id === b.dataset.uedit)));
+  $$('#view-usuarios [data-utog]').forEach(b => b.onclick = () => toggleUsuarioActivo(DB.usuarios.find(u => u.id === b.dataset.utog)));
+  $$('#view-usuarios [data-udel]').forEach(b => b.onclick = () => eliminarUsuario(DB.usuarios.find(u => u.id === b.dataset.udel)));
+};
+
+function permisosCheckHTML(perms) {
+  return PERM_GRUPOS.map(g =>
+    '<div class="perm-group"><div class="perm-group-t">' + esc(g) + '</div>' +
+    PERMISOS.filter(p => p.g === g).map(p =>
+      '<label class="checkline perm-line"><input type="checkbox" data-perm="' + p.k + '"' + (perms[p.k] ? ' checked' : '') + '> ' +
+      '<span><b>' + esc(p.t) + '</b><small>' + esc(p.d) + '</small></span></label>').join('') +
+    '</div>').join('');
+}
+function leerPermisosDelModal() {
+  const o = {};
+  $$('#modalBox [data-perm]').forEach(c => { o[c.dataset.perm] = c.checked ? 1 : 0; });
+  /*admin implica todo; si falta alguno, no es admin*/
+  if (!o.admin) delete o.admin; else {
+    for (const p of PERMISOS) if (p.k !== 'admin' && !o[p.k]) { o.admin = 0; break; }
+  }
+  return o;
+}
+function openUsuarioModal(u) {
+  if (!puede('admin')) { sinPermiso('admin'); return; }
+  const editing = !!u;
+  u = u || { nombre: '', usuario: '', sinClave: false, perms: {}, activo: true };
+  const self = SESION && SESION.id === u.id;
+  openModal({
+    title: editing ? 'Editar usuario' : 'Nuevo usuario',
+    sub: 'Cuenta de acceso con permisos a medida. Los permisos aplican desde el próximo inicio de sesión.',
+    size: 'wide',
+    body:
+      '<div class="form-section">Datos de la cuenta</div>' +
+      '<div class="form-grid">' +
+        fieldHTML('usr-nombre', 'Nombre y apellido', '<input id="usr-nombre" placeholder="Ej.: María González" value="' + esc(u.nombre || '') + '">') +
+        fieldHTML('usr-usuario', 'Usuario (para entrar)', '<input id="usr-usuario" placeholder="Ej.: mgonzalez" value="' + esc(u.usuario || '') + '" autocapitalize="none" spellcheck="false"' + (u.builtIn ? ' disabled title="Las cuentas del sistema conservan su usuario"' : '') + '>') +
+      '</div>' +
+      '<div class="form-grid">' +
+        fieldHTML('usr-clave', editing ? 'Contraseña' : 'Contraseña', '<input id="usr-clave" type="password" autocomplete="new-password" placeholder="' +
+          (editing ? (u.sinClave || !u.clave ? 'Sin contraseña configurada' : 'Dejar vacío para mantener la actual') : 'Mínimo 4 caracteres') + '">') +
+        '<div class="field"><label class="checkline" style="margin-top:24px"><input type="checkbox" id="usr-sinClave"' + (editing && (u.sinClave || !u.clave) ? ' checked' : '') + '> <span><b>Sin contraseña</b> — entra directo desde la pantalla de inicio</span></label></div>' +
+      '</div>' +
+      (editing && self ? '<div class="alert warn">' + ICONS.alert + '<div><b>Estás editando tu propia cuenta.</b> No podés quitarte la administración ni desactivarte.</div></div>' : '') +
+      '<div class="form-section">Permisos</div>' +
+      '<label class="checkline" style="margin:0 0 8px"><input type="checkbox" id="usr-all"' + (permisosDe(u).admin ? ' checked' : '') + '> <span><b>Acceso total</b> — habilita los 13 permisos, incluido este panel de usuarios</span></label>' +
+      '<div class="perm-grid">' + permisosCheckHTML(editing ? permisosDe(u) : (u.perms || {})) + '</div>' +
+      (editing ? '<label class="checkline" style="margin-top:12px"><input type="checkbox" id="usr-activo"' + (usuarioActivo(u) ? ' checked' : '') + (self ? ' disabled' : '') + '> <span><b>Cuenta activa</b> — los usuarios inactivos no pueden entrar</span></label>' : ''),
+    foot: '<button class="btn" id="usrCancel">Cancelar</button>' +
+      '<button class="btn primary" id="usrSave">' + ICONS.check + ' Guardar usuario</button>',
+    onOpen() {
+      $('#usrCancel').onclick = closeModal;
+      const syncAll = () => {
+        const on = $('#usr-all').checked;
+        $$('#modalBox [data-perm]').forEach(c => { c.checked = on; });
+      };
+      const syncDesdeUno = () => {
+        const todos = $$('#modalBox [data-perm]').every(c => c.checked);
+        $('#usr-all').checked = todos;
+      };
+      $('#usr-all').onchange = syncAll;
+      $$('#modalBox [data-perm]').forEach(c => { c.onchange = syncDesdeUno; });
+      $('#usr-sinClave').onchange = e => { $('#usr-clave').disabled = e.target.checked; };
+      $('#usr-clave').disabled = $('#usr-sinClave').checked;
+      $('#usrSave').onclick = () => guardarUsuario(editing ? u : null);
+    },
+  });
+}
+function guardarUsuario(original) {
+  const nombre = $('#usr-nombre').value.trim();
+  const usuario = $('#usr-usuario').value.trim().toLowerCase();
+  const clave = $('#usr-clave').value;
+  const sinClave = $('#usr-sinClave').checked;
+  const perms = leerPermisosDelModal();
+  const self = SESION && original && SESION.id === original.id;
+  if (nombre.length < 2) { markInvalid('usr-nombre', 'Escribí el nombre (mínimo 2 caracteres).'); return; }
+  if (usuario.length < 2 || /\s/.test(usuario)) { markInvalid('usr-usuario', 'El usuario debe tener al menos 2 caracteres, sin espacios.'); return; }
+  const dup = DB.usuarios.find(x => x.id !== (original ? original.id : '') && normKey(x.usuario) === normKey(usuario));
+  if (dup) { markInvalid('usr-usuario', 'Ya existe un usuario «' + (dup.nombre || dup.usuario) + '» con ese nombre de usuario.'); return; }
+  if (!sinClave) {
+    if (!original && clave.length < 4) { markInvalid('usr-clave', 'La contraseña debe tener al menos 4 caracteres (o marcá «Sin contraseña»).'); return; }
+    if (original && clave && clave.length < 4) { markInvalid('usr-clave', 'La contraseña nueva debe tener al menos 4 caracteres.'); return; }
+  }
+  if (self && !perms.admin) { toast('No podés quitarte a vos mismo la administración', 'error'); return; }
+  let u;
+  if (original) {
+    u = original;
+    u.nombre = nombre;
+    if (!u.builtIn) u.usuario = usuario;
+    if (sinClave) { u.clave = null; u.sinClave = true; }
+    else if (clave) { u.clave = hashClave(clave); u.sinClave = false; }
+    u.perms = perms;
+    if (!self) u.activo = $('#usr-activo').checked;
+    auditar('Usuario modificado', u.nombre + ' (@' + u.usuario + ') · permisos: ' + resumenPermisos(u));
+  } else {
+    u = {
+      id: uid(), nombre, usuario,
+      clave: sinClave ? null : hashClave(clave), sinClave: !!sinClave,
+      perms, activo: true, builtIn: null, creado: todayISO(), ultimoAcceso: null,
+    };
+    DB.usuarios.push(u);
+    auditar('Usuario creado', u.nombre + ' (@' + u.usuario + ') · permisos: ' + resumenPermisos(u));
+  }
+  if (self) SESION = u;
+  saveDB();
+  closeModal();
+  RENDERERS.usuarios();
+  aplicarPermisosUI();
+  renderNav();
+  toast(original ? 'Usuario actualizado' : 'Usuario creado', 'ok', original ? 'Permisos y cuenta actualizados' : 'Ya puede entrar con su usuario y contraseña');
+}
+function resumenPermisos(u) {
+  if (permisosDe(u).admin) return 'acceso total';
+  const n = PERMISOS.filter(p => p.k !== 'admin' && permisosDe(u)[p.k]).length;
+  return n ? n + ' de ' + (PERMISOS.length - 1) : 'solo consulta';
+}
+function toggleUsuarioActivo(u) {
+  if (!u) return;
+  if (SESION && SESION.id === u.id) { toast('No podés desactivar tu propia cuenta', 'error'); return; }
+  if (u.builtIn === 'admin') { toast('La cuenta de Sebastián siempre queda activa', 'warn'); return; }
+  u.activo = !usuarioActivo(u);
+  auditar(u.activo ? 'Usuario activado' : 'Usuario desactivado', u.nombre + ' (@' + u.usuario + ')');
+  saveDB();
+  RENDERERS.usuarios();
+  toast(u.activo ? 'Usuario activado' : 'Usuario desactivado', 'ok', u.nombre + ' ya ' + (u.activo ? 'puede' : 'no puede') + ' entrar');
+}
+async function eliminarUsuario(u) {
+  if (!u) return;
+  if (u.builtIn) { toast('Las cuentas del sistema (Sebastián e Invitado) no se eliminan', 'warn'); return; }
+  if (SESION && SESION.id === u.id) { toast('No podés eliminar tu propia cuenta', 'error'); return; }
+  const ok = await confirmDialog({
+    title: 'Eliminar usuario',
+    html: 'Se eliminará la cuenta <b>' + esc(u.nombre) + '</b> (@' + esc(u.usuario) + '). Los registros de auditoría se conservan.',
+    yes: 'Eliminar', danger: true,
+  });
+  if (!ok) return;
+  DB.usuarios = DB.usuarios.filter(x => x.id !== u.id);
+  auditar('Usuario eliminado', u.nombre + ' (@' + u.usuario + ')');
+  saveDB();
+  RENDERERS.usuarios();
+  toast('Usuario eliminado', 'ok', u.nombre);
+}
+
+/* ---------- Iconos del módulo ---------- */
+ICONS.users = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+ICONS.logout = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
+ICONS.check = ICONS.check || '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
 
 </script>
 <script>
@@ -4006,7 +4565,7 @@ RENDERERS.stock = function (patch) {
   const k = kpis();
   el.innerHTML =
     viewHead('Stock actual · foto real por posición', 'El stock de cada posición se calcula sumando el <b>Impacto stock</b> de todos los movimientos en esa coordenada. Estados: LIBRE (0), OCUPADO (&gt;0) y REVISAR SALDO (&lt;0).',
-      (esAdmin() ? '<button class="btn" id="stkConteo">' + ICONS.count + ' Conteo cíclico</button>' : '')) +
+      (puede('mov') ? '<button class="btn" id="stkConteo">' + ICONS.count + ' Conteo cíclico</button>' : '')) +
     '<div class="kpi-grid">' +
       '<div class="kpi"><div class="kpi-label">Posiciones ocupadas</div><div class="kpi-value">' + fmtInt(k.ocupadas) + '</div><div class="kpi-sub">En racks A y B (excluye Piso)</div></div>' +
       '<div class="kpi ok"><div class="kpi-label">Posiciones libres</div><div class="kpi-value">' + fmtInt(k.libres) + '</div><div class="kpi-sub">En racks A y B · ' + fmtInt(RACK_COORDS().length) + ' posiciones totales</div></div>' +
@@ -4190,9 +4749,9 @@ RENDERERS.movs = function (patch) {
         '<td><div class="row-actions">' +
           '<button class="icon-btn" data-remito="' + esc(m.id) + '" title="Imprimir remito">' + ICONS.print + '</button>' +
           '<button class="icon-btn" data-mail="' + esc(m.id) + '" title="Enviar comprobante por correo (Gmail)">' + ICONS.mail + '</button>' +
-          (esAdmin() ? '<button class="icon-btn" data-edit="' + esc(m.id) + '" title="Editar">' + ICONS.edit + '</button>' : '') +
-          (esAdmin() && !anulado ? '<button class="icon-btn" data-anular="' + esc(m.id) + '" title="Anular con ajuste de reversa">' + ICONS.ban + '</button>' : '') +
-          (esAdmin() ? '<button class="icon-btn danger" data-del="' + esc(m.id) + '" title="Eliminar">' + ICONS.trash + '</button>' : '') +
+          (puede('mov') ? '<button class="icon-btn" data-edit="' + esc(m.id) + '" title="Editar">' + ICONS.edit + '</button>' : '') +
+          (puede('mov') && !anulado ? '<button class="icon-btn" data-anular="' + esc(m.id) + '" title="Anular con ajuste de reversa">' + ICONS.ban + '</button>' : '') +
+          (puede('mov') ? '<button class="icon-btn danger" data-del="' + esc(m.id) + '" title="Eliminar">' + ICONS.trash + '</button>' : '') +
         '</div></td></tr>';
     }
     if (!list.length) html += '<tr><td colspan="14" style="text-align:center;padding:26px;color:var(--text-3)">Sin resultados con los filtros aplicados.</td></tr>';
@@ -4203,7 +4762,7 @@ RENDERERS.movs = function (patch) {
     $$('#movsTbl [data-edit]').forEach(b => b.onclick = () => openMovModal(DB.movimientos.find(x => x.id === b.dataset.edit)));
     $$('#movsTbl [data-anular]').forEach(b => b.onclick = () => openAnularModal(DB.movimientos.find(x => x.id === b.dataset.anular)));
     $$('#movsTbl [data-del]').forEach(b => b.onclick = async () => {
-      if (!esAdmin()) { toast('Solo un administrador puede eliminar movimientos', 'warn'); return; }
+      if (!puede('mov')) { toast('Tu usuario no tiene permiso para eliminar movimientos', 'warn'); return; }
       const m = DB.movimientos.find(x => x.id === b.dataset.del);
       const okDel = await confirmDialog({
         title: 'Eliminar movimiento',
@@ -4349,7 +4908,7 @@ RENDERERS.cli = function (patch) {
   for (const m of DB.movimientos) movCount.set(m.cliente || '', (movCount.get(m.cliente || '') || 0) + 1);
   el.innerHTML =
     viewHead('Maestro de clientes', 'Cargá cada cliente una sola vez. No se puede eliminar un cliente con movimientos históricos: marcálo como Inactivo.',
-      (esAdmin() ? '<button class="btn primary" id="cliNuevo">' + ICONS.plus + ' Nuevo cliente</button>' : '')) +
+      (puede('abm') ? '<button class="btn primary" id="cliNuevo">' + ICONS.plus + ' Nuevo cliente</button>' : '')) +
     '<div class="filterbar">' +
       '<div class="search-box">' + ICONS.search + '<input id="cliQ" placeholder="Buscar por cliente o código…" value="' + esc(CLI_F.q) + '"></div>' +
       '<span class="filter-count" id="cliCount"></span>' +
@@ -4376,7 +4935,7 @@ RENDERERS.cli = function (patch) {
         '<td class="num">' + fmtInt(n) + '</td>' +
         '<td><div class="row-actions">' +
           '<button class="icon-btn" data-mailcli="' + esc(c.cliente) + '" title="Enviar stock del cliente por correo (Gmail)">' + ICONS.mail + '</button>' +
-          (esAdmin() ? '<button class="icon-btn" data-edit="' + esc(c.id) + '" title="Editar">' + ICONS.edit + '</button>' +
+          (puede('abm') ? '<button class="icon-btn" data-edit="' + esc(c.id) + '" title="Editar">' + ICONS.edit + '</button>' +
           '<button class="icon-btn danger" data-del="' + esc(c.id) + '" title="Eliminar">' + ICONS.trash + '</button>' : '') +
         '</div></td></tr>';
     }
@@ -4386,7 +4945,7 @@ RENDERERS.cli = function (patch) {
     $$('#cliTbl [data-mailcli]').forEach(b => b.onclick = () => emailStockCliente(b.dataset.mailcli));
     $$('#cliTbl [data-edit]').forEach(b => b.onclick = () => openClienteModal(DB.clientes.find(x => x.id === b.dataset.edit)));
     $$('#cliTbl [data-del]').forEach(b => b.onclick = async () => {
-      if (!esAdmin()) { toast('Solo un administrador puede eliminar clientes', 'warn'); return; }
+      if (!puede('abm')) { toast('Tu usuario no tiene permiso para eliminar clientes', 'warn'); return; }
       const c = DB.clientes.find(x => x.id === b.dataset.del);
       const n = movCount.get(c.cliente || '') || 0;
       if (n > 0) {
@@ -4532,8 +5091,8 @@ RENDERERS.prod = function (patch) {
         '<td class="num">' + (s ? s.ubicaciones.size : '—') + '</td>' +
         '<td>' + (s ? badgeEstadoLinea(s.cajas) : '<span class="badge neutral">Sin uso</span>') + '</td>' +
         '<td><div class="row-actions">' +
-          (esAdmin() ? '<button class="icon-btn" data-edit="' + esc(p.id) + '" title="Editar">' + ICONS.edit + '</button>' : '') +
-          (esAdmin() ? '<button class="icon-btn danger" data-del="' + esc(p.id) + '" title="Eliminar">' + ICONS.trash + '</button>' : '') +
+          (puede('abm') ? '<button class="icon-btn" data-edit="' + esc(p.id) + '" title="Editar">' + ICONS.edit + '</button>' : '') +
+          (puede('abm') ? '<button class="icon-btn danger" data-del="' + esc(p.id) + '" title="Eliminar">' + ICONS.trash + '</button>' : '') +
         '</div></td></tr>';
     }
     if (!list.length) html += '<tr><td colspan="9" style="text-align:center;padding:26px;color:var(--text-3)">El catálogo está vacío. Se completa automáticamente al cargar movimientos o importar tu Excel.</td></tr>';
@@ -4633,7 +5192,7 @@ RENDERERS.aduana = function (patch) {
         '<td>' + estBadge + '</td>' +
         '<td><div class="row-actions">' +
           '<button class="icon-btn" data-ver="' + esc(d.dua) + '" title="Trazabilidad en Movimientos">' + ICONS.movs + '</button>' +
-          (esAdmin() ? '<button class="icon-btn" data-estado="' + esc(d.dua) + '" title="Editar estado documental">' + ICONS.edit + '</button>' : '') +
+          (puede('aduana') ? '<button class="icon-btn" data-estado="' + esc(d.dua) + '" title="Editar estado documental">' + ICONS.edit + '</button>' : '') +
           '<button class="icon-btn" data-docs="' + esc(d.dua) + '" title="Documentación del DUA (PDFs en Google Drive)">' + ICONS.folder + '</button>' +
         '</div></td></tr>';
     }
@@ -4697,7 +5256,7 @@ RENDERERS.reservas = function (patch) {
         '<td>' + (r.estado === 'Liberada' ? '<span class="badge neutral">Liberada</span>' : '<span class="badge warn">Activa</span>') + '</td>' +
         '<td><div class="row-actions">' +
           (r.estado !== 'Liberada' ? '<button class="btn sm" data-liberar="' + esc(r.id) + '">Liberar</button>' : '') +
-          (esAdmin() ? '<button class="icon-btn danger" data-del="' + esc(r.id) + '" title="Eliminar">' + ICONS.trash + '</button>' : '') +
+          (puede('reservas') ? '<button class="icon-btn danger" data-del="' + esc(r.id) + '" title="Eliminar">' + ICONS.trash + '</button>' : '') +
         '</div></td></tr>';
     }
     if (!list.length) html += '<tr><td colspan="10" style="text-align:center;padding:26px;color:var(--text-3)">Sin reservas' + (RES_F.ver === 'activas' ? ' activas' : '') + '. Creá la primera con «Nueva reserva» o desde el detalle de una posición en el mapa.</td></tr>';
@@ -4847,7 +5406,7 @@ RENDERERS.auditoria = function (patch) {
   root.innerHTML =
     viewHead('Auditoría de cambios', 'Historial completo de operaciones: altas, ediciones, anulaciones, importaciones, reservas y cambios de configuración, con marca de tiempo y rol del usuario.',
       '<button class="btn" id="audCsv">' + ICONS.download + ' CSV</button>' +
-      (esAdmin() ? '<button class="btn danger" id="audClear">Limpiar auditoría</button>' : '')) +
+      (puede('admin') ? '<button class="btn danger" id="audClear">Limpiar auditoría</button>' : '')) +
     '<div class="filterbar">' +
       '<div class="search-box">' + ICONS.search + '<input id="audQ" placeholder="Buscar en el historial…" value="' + esc(AUD_F.q) + '"></div>' +
       '<select id="audTipo"><option value="todos">Todos los tipos</option>' + tipos.map(t => '<option>' + esc(t) + '</option>').join('') + '</select>' +
@@ -4883,7 +5442,7 @@ RENDERERS.auditoria = function (patch) {
       html += '<tr><td class="mono" style="white-space:nowrap">' + fmtDateTime(a.ts) + '</td>' +
         '<td><span class="badge outline">' + esc(a.tipo) + '</span></td>' +
         '<td>' + esc(a.detalle) + '</td>' +
-        '<td>' + (a.rol === 'admin' ? '<span class="badge accent">Admin</span>' : '<span class="badge neutral">Operario</span>') + '</td></tr>';
+        '<td>' + (a.usuario ? '<span class="badge outline">' + esc(a.usuario) + '</span>' : (a.rol === 'admin' ? '<span class="badge accent">Admin</span>' : '<span class="badge neutral">Operario</span>')) + '</td></tr>';
     }
     if (!list.length) html += '<tr><td colspan="4" style="text-align:center;padding:26px;color:var(--text-3)">Sin registros de auditoría todavía. Cada operación del sistema quedará registrada acá.</td></tr>';
     html += '</tbody></table></div>';
@@ -4947,7 +5506,7 @@ function formDataLists(dl) {
 function openMovModal(mov, linea, tipoFijo) {
   const dl = dataListValues();
   const editing = !!mov;
-  if (editing && !esAdmin()) { toast('Solo un administrador puede editar movimientos', 'warn'); return; }
+  if (editing && !puede('mov')) { toast('Tu usuario no tiene permiso para editar movimientos', 'warn'); return; }
   const m = mov || {
     fecha: todayISO(), tipo: tipoFijo || 'Ingreso', nroStock: linea ? linea.nroStock : '',
     cliente: linea ? linea.cliente : '', contenedor: '', dua: '',
@@ -4956,6 +5515,7 @@ function openMovModal(mov, linea, tipoFijo) {
   };
   const impactoInicial = editing ? impactoDe(m) : impactoCalculado(m.tipo, m.cantidad || 0);
   openModal({
+    perm: 'mov',
     title: editing ? 'Editar movimiento' : 'Nuevo movimiento',
     sub: editing ? 'Los cambios recalculan el stock de la posición afectada. Dejá registrado el motivo de la corrección.' : 'El impacto se calcula automáticamente: +cantidad en Ingresos/Ajuste +, −cantidad en Egresos/Ajuste −. Los productos nuevos se agregan solos al catálogo.',
     size: 'wide',
@@ -5096,6 +5656,7 @@ function openTrasladoModal(linea) {
   const dl = dataListValues();
   const st = stockPorCoord();
   openModal({
+    perm: 'traslado',
     title: 'Traslado entre posiciones',
     sub: 'Genera automáticamente el Egreso en el origen y el Ingreso en el destino, con la misma cabecera.',
     size: 'wide',
@@ -5208,6 +5769,7 @@ function openCargaRapidaModal() {
   const st = stockPorCoord();
   let rows = [];
   openModal({
+    perm: 'carga',
     title: 'Carga rápida de ingresos por contenedor / DUA',
     sub: 'Completá la cabecera una sola vez y cargá varios pallets, asignando coordenadas consecutivas sin reescribir datos.',
     size: 'wide',
@@ -5317,9 +5879,10 @@ function openCargaRapidaModal() {
    ============================================================ */
 function openClienteModal(cli) {
   const editing = !!cli;
-  if (!esAdmin()) { toast('Solo un administrador puede gestionar el maestro de clientes', 'warn'); return; }
+  if (!puede('abm')) { toast('Tu usuario no tiene permiso para gestionar el maestro de clientes', 'warn'); return; }
   const c = cli || { codigo: '', cliente: '', estado: 'Activo', contacto: '', obs: '' };
   openModal({
+    perm: 'abm',
     title: editing ? 'Editar cliente' : 'Nuevo cliente',
     sub: 'El cliente se carga una sola vez en este maestro; después se selecciona en los movimientos.',
     body:
@@ -5360,6 +5923,7 @@ function openPalletModal(reg) {
   const editing = !!reg;
   const p = reg || { fecha: todayISO(), ingreso: '', egreso: '', obs: '' };
   openModal({
+    perm: 'pallets',
     title: editing ? 'Editar registro de pallets' : 'Registrar movimiento de pallets vacíos',
     sub: 'El stock acumulado se recalcula automáticamente (stock anterior + ingreso − egreso).',
     body:
@@ -5403,6 +5967,7 @@ function openPosicionModal(coord) {
   const reservas = reservasDeCoord(coord);
   const estado = estadoPosicion(stock);
   openModal({
+    perm: 'abm',
     title: 'Posición ' + coord,
     sub: estado === 'REVISAR SALDO' ? 'Saldo negativo: revisá los movimientos de esta posición.' : items.length > 1 ? 'Palet compartido: ' + items.length + ' ítems con saldo en esta posición.' : 'Detalle del inventario en esta posición.',
     size: 'wide',
@@ -5468,10 +6033,11 @@ function openPosicionModal(coord) {
    ============================================================ */
 function openProductoModal(cat) {
   const editing = !!cat;
-  if (!esAdmin()) { toast('Solo un administrador puede gestionar el catálogo', 'warn'); return; }
+  if (!puede('abm')) { toast('Tu usuario no tiene permiso para gestionar el catálogo', 'warn'); return; }
   const dl = dataListValues();
   const c = cat || { producto: '', medida: '', cliente: '', unidad: '', obs: '' };
   openModal({
+    perm: 'abm',
     title: editing ? 'Editar producto / SKU' : 'Nuevo producto / SKU',
     sub: 'El SKU es la combinación Producto + Medida. Si el producto ya existe en el catálogo con otra medida, se creará una entrada nueva.',
     body:
@@ -5510,12 +6076,13 @@ function openProductoModal(cat) {
    MODAL · Anular movimiento (ajuste de reversa controlado)
    ============================================================ */
 function openAnularModal(mov) {
-  if (!esAdmin()) { toast('Solo un administrador puede anular movimientos', 'warn'); return; }
+  if (!puede('mov')) { toast('Tu usuario no tiene permiso para anular movimientos', 'warn'); return; }
   if (mov.anulado) { toast('El movimiento ya está anulado', 'warn'); return; }
   const imp = impactoDe(mov);
   if (imp === 0) { toast('El movimiento no tiene efecto en stock', 'warn', 'Editá o eliminá el movimiento directamente.'); return; }
   const tipoRev = imp > 0 ? 'Ajuste -' : 'Ajuste +';
   openModal({
+    perm: 'mov',
     title: 'Anular movimiento',
     sub: 'No se borra nada: se registra un ajuste de reversa que deja el stock como estaba, y el movimiento queda marcado como ANULADO.',
     body:
@@ -5556,9 +6123,10 @@ function openAnularModal(mov) {
    MODAL · Conteo cíclico (stock teórico vs contado)
    ============================================================ */
 function openConteoCiclicoModal() {
-  if (!esAdmin()) { toast('Solo un administrador puede aplicar conteos cíclicos', 'warn'); return; }
+  if (!puede('mov')) { toast('Tu usuario no tiene permiso para aplicar conteos cíclicos', 'warn'); return; }
   let lineas = [];
   openModal({
+    perm: 'mov',
     title: 'Conteo cíclico / inventario físico',
     sub: 'Compará el stock teórico con lo contado físicamente. Cada diferencia genera automáticamente un Ajuste +/− con la referencia «Conteo cíclico».',
     size: 'wide',
@@ -5645,6 +6213,7 @@ function openConteoCiclicoModal() {
 function openReservaModal(linea) {
   const items = linea ? [linea] : [];
   openModal({
+    perm: 'reservas',
     title: 'Nueva reserva / bloqueo',
     sub: 'La mercadería reservada sigue en el depósito, pero el sistema la descuenta del saldo disponible de esa línea.',
     body:
@@ -5711,11 +6280,12 @@ function openReservaModal(linea) {
    MODAL · Estado documental de un DUA
    ============================================================ */
 function openAduanaEstadoModal(dua) {
-  if (!esAdmin()) { toast('Solo un administrador puede editar el estado documental', 'warn'); return; }
+  if (!puede('aduana')) { toast('Tu usuario no tiene permiso para editar el estado documental', 'warn'); return; }
   const actual = DB.aduanaEstado[dua] || {};
   const d = resumenPorDUA().find(x => x.dua === dua) || {};
   const dias = diasDesde(d.primerFecha);
   openModal({
+    perm: 'aduana',
     title: 'Estado documental · DUA ' + dua,
     sub: 'Saldos y permanencia del DUA, y su estado de gestión aduanera.',
     body:
@@ -5767,6 +6337,7 @@ function openEtiquetaModal(coord) {
   const stock = stockPorCoord().get(coord) || 0;
   const items = itemsActivos(coord);
   openModal({
+    perm: 'imprimir',
     title: 'Etiqueta de posición ' + coord,
     sub: 'Vista previa de la etiqueta con código QR. Usá Imprimir y elegí la impresora o «Guardar como PDF».',
     body: '<div class="etq-preview">' + (items.length === 1
@@ -5786,6 +6357,7 @@ function openEtiquetaModal(coord) {
 }
 function openEtiquetasLoteModal(movs) {
   openModal({
+    perm: 'imprimir',
     title: 'Etiquetas del ingreso',
     sub: 'Una etiqueta por posición cargada. Imprimilas y pegalas en cada pallet.',
     size: 'wide',
@@ -5816,20 +6388,16 @@ function openSettingsModal() {
 function renderSettingsModal() {
   const snaps = DB.snapshots.slice().reverse();
   openModal({
+    perm: 'config',
     title: 'Configuración y seguridad',
     sub: 'Roles de usuario, PIN de administrador y respaldos automáticos previos a cada importación.',
     size: 'wide',
     body:
       (typeof googleSettingsSectionHTML === 'function' ? googleSettingsSectionHTML() : '') +
-      '<div class="form-section">Rol actual</div>' +
-      '<div class="alert ' + (esAdmin() ? 'info' : 'warn') + '">' + ICONS.shield + '<div><b>Rol actual: ' + (esAdmin() ? 'Administrador' : 'Operario') + '.</b> ' +
-        'El <b>operario</b> carga movimientos, traslados y carga rápida, consulta todo y exporta. El <b>administrador</b> además edita/anula/elimina movimientos, gestiona clientes, productos, reservas, conteos, aduana, importaciones y configuración.' +
-      '</div></div>' +
-      '<div class="form-grid">' +
-        fieldHTML('cf-rol', 'Cambiar rol', selHTML('cf-rol', [{ v: 'admin', t: 'Administrador' }, { v: 'operario', t: 'Operario' }], DB.config.rol)) +
-        fieldHTML('cf-pin', 'PIN de administrador', '<input id="cf-pin" type="password" inputmode="numeric" placeholder="' + (DB.config.pinHash ? 'PIN configurado — escribí uno nuevo para cambiarlo' : 'Sin PIN: configurá uno (4+ dígitos)') + '">') +
-        (DB.config.pinHash ? '<div class="field"><button class="btn danger" id="cf-pinDel" style="margin-top:22px">Quitar PIN</button></div>' : '') +
-      '</div>' +
+      '<div class="form-section">Usuarios y permisos</div>' +
+      '<div class="alert ' + (esAdmin() ? 'info' : 'warn') + '">' + ICONS.users + '<div><b>Sesión iniciada: ' + esc(nombreUsuarioSesion()) + '</b> · ' + esc(rolTextoSesion()) + '.' +
+        ' El acceso al sistema se gestiona desde la vista <b>Usuarios</b>: cuentas con contraseña o de consulta libre, y permisos granulares por operación (movimientos, traslados, catálogos, aduana, impresión, correos, Drive).' +
+        (esAdmin() ? '' : ' Pedile al administrador los cambios que necesites.') + '</div></div>' +
       '<div class="form-section">Respaldos automáticos (snapshots)</div>' +
       '<div class="alert info">' + ICONS.db + '<div>Antes de cada <b>importación de Excel</b> o <b>restauración de respaldo</b>, el sistema guarda una copia completa de los datos actuales (últimos ' + 3 + '). También podés descargar el respaldo completo en JSON desde el menú Exportar.</div></div>' +
       (snaps.length
@@ -5838,18 +6406,13 @@ function renderSettingsModal() {
             '<td><div class="row-actions"><button class="btn sm" data-snapdl="' + i + '">' + ICONS.download + ' Descargar</button><button class="btn sm danger" data-snapres="' + i + '">Restaurar</button></div></td></tr>').join('') +
           '</tbody></table></div>'
         : '<div class="muted" style="font-size:13px">Todavía no hay snapshots: se crean automáticamente antes de importar o restaurar.</div>'),
-    foot: '<button class="btn" id="cfCancel">Cerrar</button><button class="btn primary" id="cfSave">Guardar cambios</button>',
+    foot: '<button class="btn" id="cfCancel">Cerrar</button>' +
+      (esAdmin() ? '<button class="btn primary" id="cfUsuarios">' + ICONS.users + ' Gestionar usuarios</button>' : ''),
     onOpen() {
       $('#cfCancel').onclick = closeModal;
+      const btnU = $('#cfUsuarios');
+      if (btnU) btnU.onclick = () => { closeModal(); setView('usuarios'); };
       if (typeof bindGoogleSettings === 'function') bindGoogleSettings();
-      const pinDel = $('#cf-pinDel');
-      if (pinDel) pinDel.onclick = async () => {
-        const ok = await confirmDialog({ title: 'Quitar PIN', html: 'Se eliminará el PIN de administrador. El cambio de rol quedará sin protección.', yes: 'Quitar PIN', danger: true });
-        if (!ok) return;
-        DB.config.pinHash = null; saveDB();
-        toast('PIN eliminado', 'ok');
-        closeModal(); renderSettingsModal();
-      };
       $$('#modalBox [data-snapdl]').forEach(b => b.onclick = () => {
         const s = DB.snapshots.slice().reverse()[+b.dataset.snapdl];
         const blob = new Blob([s.data], { type: 'application/json' });
@@ -5868,23 +6431,6 @@ function renderSettingsModal() {
         renderNavCounts(); setView('panel');
         toast('Snapshot restaurado', 'ok', 'Datos al ' + fmtDateTime(s.ts));
       });
-      $('#cfSave').onclick = async () => {
-        const rol = $('#cf-rol').value;
-        const pin = $('#cf-pin').value.trim();
-        if (pin) {
-          if (!/^\d{4,}$/.test(pin)) { markInvalid('cf-pin', 'El PIN debe tener al menos 4 dígitos numéricos.'); return; }
-          DB.config.pinHash = await sha256Hex(pin);
-        }
-        if (rol !== DB.config.rol) {
-          DB.config.rol = rol;
-          auditar('Cambio de rol', 'Rol cambiado a ' + (rol === 'admin' ? 'Administrador' : 'Operario'));
-        }
-        saveDB();
-        closeModal();
-        renderNavCounts();
-        renderCurrentView();
-        toast('Configuración guardada', 'ok', 'Rol: ' + (esAdmin() ? 'Administrador' : 'Operario'));
-      };
     },
   });
 }
@@ -6098,10 +6644,10 @@ function parseWorkbook(data) {
 
 function aplicarImportacion(parsed, mode) {
   if (mode === 'replace') {
-    // Se conservan snapshots (respaldo pre-importación), auditoría y configuración (rol/PIN)
-    const snaps = DB.snapshots, audit = DB.auditoria, conf = DB.config;
+    // Se conservan snapshots (respaldo pre-importación), auditoría, configuración y cuentas de usuario
+    const snaps = DB.snapshots, audit = DB.auditoria, conf = DB.config, usuarios = DB.usuarios;
     DB = emptyDB();
-    DB.snapshots = snaps; DB.auditoria = audit; DB.config = conf;
+    DB.snapshots = snaps; DB.auditoria = audit; DB.config = conf; DB.usuarios = usuarios;
   }
   // Movimientos (numeración de orden cronológico estable)
   let n = mode === 'add' ? nextN() : 1;
@@ -6129,6 +6675,7 @@ function aplicarImportacion(parsed, mode) {
 function openImportModal() {
   let parsed = null, fileName = '';
   openModal({
+    perm: 'config',
     title: 'Importar Excel (.xlsx)',
     sub: 'Lee tu archivo Control_Stock_Deposito_Fiscal (con fórmulas o valores cacheados): hojas Movimientos, Clientes, PALLETS VACIOS y el maestro de coordenadas de STOCK ACTUAL. Las hojas Panel, Posiciones y Resumen SKU se recalculan solas.',
     body:
@@ -6173,7 +6720,7 @@ function openImportModal() {
       $('#impCancel').onclick = closeModal;
       $('#impConfirm').onclick = () => {
         if (!parsed) return;
-        if (!esAdmin()) { toast('Solo un administrador puede importar datos', 'warn'); return; }
+        if (!puede('config')) { toast('Tu usuario no tiene permiso para importar datos', 'warn'); return; }
         const mode = ($$('#modalBox input[name=impMode]').find(r => r.checked) || { value: 'replace' }).value;
         crearSnapshot('Pre-importación ' + fileName + ' (' + (mode === 'replace' ? 'reemplazo' : 'añadido') + ')');
         aplicarImportacion(parsed, mode);
@@ -6341,6 +6888,7 @@ function workbookBytes(wb) {
 }
 
 function exportarXLSX() {
+  if (!permisoObloqueo('imprimir')) return;
   if (dbIsEmpty()) { toast('No hay datos para exportar', 'warn'); return; }
   const wb = buildWorkbook();
   const name = 'Control_Stock_Deposito_Fiscal_' + todayISO() + '.xlsx';
@@ -6350,6 +6898,7 @@ function exportarXLSX() {
 
 /* ---------- Respaldo JSON ---------- */
 function backupJSON() {
+  if (!permisoObloqueo('imprimir')) return;
   const blob = new Blob([JSON.stringify({ app: 'WMS-Deposito-Fiscal', version: 1, exportado: todayISO(), coords: COORDS, db: DB }, null, 1)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -6361,9 +6910,9 @@ function backupJSON() {
 /* ---------- Restauración desde objeto de respaldo (JSON local o Drive) ---------- */
 function restaurarDataObj(data, label) {
   crearSnapshot('Pre-restauración · ' + label);
-  const conf = DB.config, snaps = DB.snapshots;
+  const conf = DB.config, snaps = DB.snapshots, usuarios = DB.usuarios;
   DB = Object.assign(emptyDB(), data.db);
-  DB.config = conf; DB.snapshots = snaps; // conservar rol/PIN, respaldos y configuración actual
+  DB.config = conf; DB.snapshots = snaps; DB.usuarios = usuarios; // conservar configuración, respaldos y cuentas de usuario
   rebuildCoords((data.coords || []).concat(DB.movimientos.map(m => m.coordenada)));
   invalidate(); saveDB();
   auditar('Datos restaurados', label + ' · ' + fmtInt(DB.movimientos.length) + ' movimientos · ' + (DB.clientes || []).length + ' clientes');
@@ -6382,7 +6931,7 @@ async function restoreJSON(file) {
       yes: 'Restaurar', danger: true,
     });
     if (!ok) return;
-    if (!esAdmin()) { toast('Solo un administrador puede restaurar respaldos', 'warn'); return; }
+    if (!puede('config')) { toast('Tu usuario no tiene permiso para restaurar respaldos', 'warn'); return; }
     restaurarDataObj(data, 'Respaldo JSON del ' + (data.exportado || '—'));
     toast('Respaldo restaurado', 'ok', 'Se conservó el rol y los snapshots actuales.');
   } catch (e) {
@@ -6450,7 +6999,7 @@ function comprobanteBodyHTML(movs, titulo) {
         '<tr><td colspan="5"><b>TOTAL</b></td><td class="num"><b>' + fmtInt(total) + '</b></td><td></td></tr>' +
       '</table>' +
       (obss.length ? '<p class="remito-obs"><b>Observaciones:</b> ' + esc(obss.join(' · ')) + '</p>' : '') +
-      '<p class="remito-obs"><b>Registrado por:</b> ' + (esAdmin() ? 'Administrador' : 'Operario') + ' · Documento generado por el WMS DAP1914 el ' + esc(stampNow()) + '</p>' +
+      '<p class="remito-obs"><b>Registrado por:</b> ' + esc(nombreUsuarioSesion()) + ' · Documento generado por el WMS DAP1914 el ' + esc(stampNow()) + '</p>' +
       '<div class="remito-firmas"><div><span>Operario</span><i></i></div><div><span>Conforme / Chofer</span><i></i></div><div><span>Control depósito</span><i></i></div></div>' +
     '</div>';
   return cuerpo;
@@ -6522,7 +7071,7 @@ function trazaBodyHTML(dua) {
         : '<tr><td colspan="8" style="text-align:center">Sin mercadería vigente de este DUA en depósito</td></tr>') +
         '<tr><td colspan="6"><b>SALDO VIGENTE TOTAL</b></td><td class="num"><b>' + fmtInt(totalVig) + '</b></td><td></td></tr>' +
       '</table>' +
-      '<p class="remito-obs"><b>Registrado por:</b> ' + (esAdmin() ? 'Administrador' : 'Operario') + ' · Documento generado por el WMS DAP1914 el ' + esc(stampNow()) + '</p>' +
+      '<p class="remito-obs"><b>Registrado por:</b> ' + esc(nombreUsuarioSesion()) + ' · Documento generado por el WMS DAP1914 el ' + esc(stampNow()) + '</p>' +
     '</div>';
   return html;
 }
@@ -6694,7 +7243,7 @@ function listadoPalletsBodyHTML(rows, f) {
         '<tr><td colspan="8"><b>TOTAL</b></td><td class="num"><b>' + fmtInt(total) + '</b></td></tr>' +
       '</table>' +
       '<p class="remito-obs"><b>Pallets vacíos:</b> saldo disponible ' + fmtInt(saldoPal) + ' pallet(s) según el registro de PALLETS VACIOS.</p>' +
-      '<p class="remito-obs"><b>Registrado por:</b> ' + (esAdmin() ? 'Administrador' : 'Operario') + ' · Documento generado por el WMS DAP1914 el ' + esc(stampNow()) + '</p>' +
+      '<p class="remito-obs"><b>Registrado por:</b> ' + esc(nombreUsuarioSesion()) + ' · Documento generado por el WMS DAP1914 el ' + esc(stampNow()) + '</p>' +
     '</div>';
   return html;
 }
@@ -6839,7 +7388,7 @@ function reporteDiaBodyHTML(f) {
         '<table class="print-tbl"><tr><td><b>TOTAL DEL DÍA (' + movs.length + ' movimientos · ' + grupos.length + ' DUA)</b></td>' +
         '<td class="num" style="width:120px"><b>' + fmtInt(total) + ' cajas</b></td></tr></table>'
       : '<p class="remito-obs" style="text-align:center">Sin movimientos para la fecha y filtros elegidos.</p>') +
-      '<p class="remito-obs"><b>Registrado por:</b> ' + (esAdmin() ? 'Administrador' : 'Operario') + ' · Documento generado por el WMS DAP1914 el ' + esc(stampNow()) + '</p>' +
+      '<p class="remito-obs"><b>Registrado por:</b> ' + esc(nombreUsuarioSesion()) + ' · Documento generado por el WMS DAP1914 el ' + esc(stampNow()) + '</p>' +
       (grupos.length ? '<div class="remito-firmas"><div><span>' + (esEgreso ? 'Entregó (depósito)' : 'Operario') + '</span><i></i></div>' +
         '<div><span>' + (esEgreso ? 'Recibió (transporte)' : 'Control depósito') + '</span><i></i></div>' +
         '<div><span>Conforme cliente</span><i></i></div></div>' : '') +
@@ -7139,6 +7688,7 @@ async function gPruneBackups() {
 }
 async function driveSaveNow(opts) {
   const o = Object.assign({ backup: false, silent: false }, opts || {});
+  if (!puede('drive')) { if (!o.silent) sinPermiso('drive'); return false; }
   if (dbIsEmpty()) { if (!o.silent) toast('No hay datos para guardar todavía', 'warn'); return false; }
   await gAuth(false);
   await gEnsureTree();
@@ -7174,6 +7724,7 @@ async function driveInfo() {
   return { db: await gFindIn(GState.ids.folder, DRIVE_DB_NAME), json: await gFindIn(GState.ids.folder, DRIVE_JSON_NAME) };
 }
 async function driveDownloadNow() {
+  if (!puede('drive_leer')) { sinPermiso('drive_leer'); return false; }
   await gAuth(false);
   await gEnsureTree();
   /* 1) Preferir el estado JSON completo (fidelidad total entre dispositivos) */
@@ -7189,7 +7740,7 @@ async function driveDownloadNow() {
         yes: 'Descargar y reemplazar', danger: true,
       });
       if (!ok) return false;
-      if (!esAdmin()) { toast('Solo un administrador puede reemplazar los datos', 'warn'); return false; }
+      if (!puede('drive_leer')) { toast('Tu usuario no tiene permiso para reemplazar los datos', 'warn'); return false; }
       restaurarDataObj(data, 'Descarga desde Drive · ' + fmtDateTime(jf.modifiedTime || data.exportado));
       gCfg().lastSyncAt = new Date().toISOString(); saveDB();
       if (typeof renderCurrentViewSafe === 'function') renderCurrentViewSafe();
@@ -7223,6 +7774,7 @@ async function driveDownloadNow() {
 
 /* ---------- Documentación aduanera (PDFs por DUA) ---------- */
 async function driveUploadDoc(dua, file) {
+  if (!puede('aduana')) { sinPermiso('aduana'); throw new Error('Sin permiso para gestionar la documentación de DUAs'); }
   await gAuth(false);
   await gEnsureTree();
   const safeDua = String(dua || 'SIN_DUA').replace(/[^\w.-]+/g, '_');
@@ -7299,6 +7851,7 @@ function mimeBuild(o) {
   return utf8(lines.join('\r\n'));
 }
 async function gmailSend(to, subject, body, attachments) {
+  if (!permisoObloqueo('correo')) throw new Error('Sin permiso para enviar correos');
   await gAuth(false);
   const raw = b64url(mimeBuild({ to, subject, body, attachments }));
   const r = await gfetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
@@ -7486,7 +8039,7 @@ function pdfComprobante(mov) {
     doc.text(doc.M + 8, doc.y, 'F3', 8.5, mov.obs.length > 110 ? mov.obs.slice(0, 109) + '~' : mov.obs);
     doc.y -= 20;
   }
-  doc.text(doc.M, doc.y, 'F1', 8.5, 'Registrado por: ' + (esAdmin() ? 'Administrador' : 'Operario') + ' · Documento generado por el WMS DAP1914', [0.45, 0.48, 0.55]);
+  doc.text(doc.M, doc.y, 'F1', 8.5, 'Registrado por: ' + nombreUsuarioSesion() + ' · Documento generado por el WMS DAP1914', [0.45, 0.48, 0.55]);
   doc.y -= 90;
   doc.ensure(46);
   const half = doc.CW / 2;
@@ -7738,6 +8291,7 @@ function openDriveModal() {
   const wrongAcc = connected && cfg.hint && GState.email && GState.email.toLowerCase() !== String(cfg.hint).toLowerCase();
   const dis = connected ? '' : ' disabled';
   openModal({
+    perm: 'drive_leer',
     title: 'Sincronización con Google Drive',
     sub: 'Cuenta del depósito: ' + esc(cfg.hint || GOOGLE_HINT_DEFAULT) + ' · carpeta ' + DRIVE_FOLDER + ' en Mi Unidad',
     body:
@@ -7783,6 +8337,12 @@ function openDriveModal() {
       busy($('#drvDownload'), 'Descargando…', () => driveDownloadNow());
       busy($('#drvBackup'), 'Respaldando…', () => driveSaveNow({ backup: true }));
       const mail = $('#drvMail'); if (mail) mail.onclick = () => { closeModal(); emailReportePeriodo('', ''); };
+      /* Permisos: sin «drive» no se escribe en Drive; sin «correo» no se envían reportes */
+      if (typeof puede === 'function' && !puede('drive')) {
+        ['#drvSave', '#drvBackup'].forEach(s => { const b = $(s); if (b) b.style.display = 'none'; });
+        const auto = $('#drvAuto'); if (auto && auto.closest('label')) auto.closest('label').style.display = 'none';
+      }
+      if (typeof puede === 'function' && !puede('correo')) { const m = $('#drvMail'); if (m) m.style.display = 'none'; }
       const dis2 = $('#drvDisconnect'); if (dis2) dis2.onclick = async () => {
         const ok = await confirmDialog({ title: 'Desconectar Google Drive', html: 'Se cerrará la sesión de Google en esta app. Los datos locales NO se modifican: podés seguir trabajando offline y reconectarte cuando quieras.', yes: 'Desconectar' });
         if (!ok) return;
@@ -7809,6 +8369,7 @@ function openDriveModal() {
    AUTO-SINCRONIZACIÓN
    ============================================================ */
 function scheduleAutoSync() {
+  if (typeof puede === 'function' && !puede('drive')) return;  /* sin permiso de Drive no se respalda solo */
   if (!gCfg().autoSync || !GState.token) return;   /* solo con sesión activa */
   clearTimeout(_autoSyncTimer);
   _autoSyncTimer = setTimeout(() => {
@@ -7845,6 +8406,7 @@ function openEmailModal(opts) {
   const attRows = o.attachments.map((a, i) =>
     '<label class="mail-opt"><input type="checkbox" data-att="' + i + '" checked> <div><b>' + esc(a.label) + '</b><small>' + esc(a.sub || '') + '</small></div></label>').join('');
   openModal({
+    perm: 'correo',
     title: 'Enviar por correo (Gmail)',
     sub: connected
       ? 'Se envía con la sesión de Google conectada: ' + esc(GState.email)
@@ -7969,6 +8531,7 @@ async function openDuaDocsModal(dua) {
   if (!dua) return;
   _docsDua = String(dua);
   openModal({
+    perm: 'aduana',
     title: 'Documentación del DUA ' + esc(dua),
     sub: 'PDFs (DUA escaneado, remitos, documentación aduanera) guardados en Drive/' + DRIVE_FOLDER + '/' + DRIVE_SUB_DOCS,
     size: 'wide',
@@ -8168,22 +8731,26 @@ function bindGoogleSettings() {
 <script>
 /* ============================================================
    INICIALIZACIÓN
+   Flujo: cargar DB → usuarios → (sesión guardada | pantalla de
+   acceso) → iniciarApp() con los permisos del usuario activo.
    ============================================================ */
 'use strict';
 
 function showOnboard() { $('#onboard').style.display = 'flex'; }
 function hideOnboard() { $('#onboard').style.display = 'none'; }
 
+let _catalogoSyncPendiente = false;
+
 function boot() {
   loadDB();
+  ensureUsuarios();
   // Migración: sesiones previas sin catálogo → alta al vuelo desde los movimientos
-  let catalogoSincronizado = false;
-  if (DB.movimientos.length && DB.productos.length === 0) { syncCatalogoFromMovs(); catalogoSincronizado = true; }
+  if (DB.movimientos.length && DB.productos.length === 0) { syncCatalogoFromMovs(); _catalogoSyncPendiente = true; saveDB(); }
   // Tema
   const saved = localStorage.getItem(LS_THEME);
   applyTheme(saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
 
-  // Iconos estáticos
+  // Iconos estáticos (quedan detrás de la pantalla de acceso)
   $('#brandLogo').innerHTML = ICONS.logo;
   $('#onboardLogo').innerHTML = ICONS.logo;
   $('#btnHamburger').innerHTML = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>';
@@ -8194,23 +8761,37 @@ function boot() {
   if (typeof gCfg === 'function') gCfg(); /* asegura defaults de la configuración Google */
   $('#btnTheme').innerHTML = document.documentElement.getAttribute('data-theme') === 'dark' ? ICONS.sun : ICONS.moon;
   $('#btnSettings').innerHTML = ICONS.gear;
-  $('#btnSettings').title = 'Configuración · rol, PIN y respaldos';
+  $('#btnSettings').title = 'Configuración · usuarios y respaldos';
   $('#obImportIc').innerHTML = ICONS.upload;
   $('#obSeedIc').innerHTML = ICONS.db;
   $('#obEmptyIc').innerHTML = ICONS.plus;
   $$('#exportDrop .mi-ic').forEach((el, i) => { el.innerHTML = [ICONS.download, ICONS.db, ICONS.upload][i] || ''; });
 
+  /* Acceso: sesión guardada en este navegador → entrar directo; si no, pantalla de acceso */
+  if (sesionRestaurada()) iniciarApp();
+  else mostrarLock();
+}
+
+function iniciarApp() {
+  if (_catalogoSyncPendiente) {
+    _catalogoSyncPendiente = false;
+    toast('Catálogo de productos generado', 'ok', DB.productos.length + ' SKUs detectados en tus movimientos.');
+  }
+
   // Navegación
   renderNav();
   renderNavCounts();
+  aplicarPermisosUI();
 
   // Vista inicial (hash o Panel)
   const hash = (location.hash || '').replace('#', '');
   setView(VIEWS.some(v => v.id === hash) ? hash : 'panel');
 
-  // Onboarding si no hay datos
-  if (dbIsEmpty()) showOnboard();
-  if (catalogoSincronizado) { saveDB(); toast('Catálogo de productos generado', 'ok', DB.productos.length + ' SKUs detectados en tus movimientos.'); }
+  // Onboarding si no hay datos (solo para usuarios que pueden cargarlos)
+  if (dbIsEmpty()) {
+    if (puede('config')) showOnboard();
+    else toast('Sistema sin datos todavía', 'info', 'El administrador aún no cargó datos en este navegador. Podrás verlos apenas los cargue o se descarguen de Drive.');
+  }
 
   /* ----- Eventos globales ----- */
   $('#btnTheme').onclick = toggleTheme;
@@ -8234,6 +8815,7 @@ function boot() {
   // Onboarding
   $('#obImport').onclick = openImportModal;
   $('#obSeed').onclick = () => {
+    if (!puede('config')) { sinPermiso('config'); return; }
     loadSeed();
     hideOnboard();
     invalidate(); renderNavCounts(); setView('panel');
