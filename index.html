@@ -588,10 +588,25 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 .print-doc { color: #000; background: #fff; }
 .remito { max-width: 720px; margin: 0 auto; }
 .remito-titulo { text-align: center; font-size: 15px; font-weight: 900; letter-spacing: .04em; margin: 6px 0 12px; border: 2px solid #000; padding: 8px; }
+.remito-meta { text-align: center; font-size: 11px; color: #333; margin: -4px 0 10px; }
+.remito-sub { font-size: 11.5px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; margin: 14px 0 6px; border-bottom: 1.5px solid #000; padding-bottom: 3px; }
+.remito-datos th, .remito-datos td { font-size: 11.5px; padding: 5px 7px; }
+.remito-detalle th, .remito-detalle td { font-size: 11px; padding: 4.5px 7px; }
 .remito-obs { font-size: 12px; margin: 8px 0; }
 .remito-firmas { display: flex; gap: 40px; margin-top: 46px; }
 .remito-firmas > div { flex: 1; text-align: center; font-size: 11px; }
 .remito-firmas span { display: block; border-top: 1px solid #000; padding-top: 4px; }
+
+/* ---------- Trazabilidad por DUA y listado de pallets ---------- */
+.traza-search { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.traza-search .search-box { min-width: 220px; }
+.tz-note { display: flex; gap: 8px 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 12px; margin-bottom: 4px; }
+.listado-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.listado-filters select, .listado-filters .search-box { max-width: 220px; }
+@media (max-width: 640px) {
+  .listado-filters select { flex: 1 1 40%; }
+  .traza-search .search-box { flex: 1 1 100%; }
+}
 .print-tbl { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 12px; }
 .print-tbl th, .print-tbl td { border: 1px solid #000; padding: 5px 8px; text-align: left; }
 .print-tbl th { background: #eee; font-size: 11px; text-transform: uppercase; }
@@ -3667,6 +3682,14 @@ function globalSearch(q) {
   const groups = [];
   const qn = normKey(q);
 
+  // DUAs → trazabilidad completa (primero en la lista: búsqueda rápida por DUA)
+  const duaRes = Array.from(new Set(DB.movimientos.map(m => String(m.dua == null ? '' : m.dua).trim()).filter(Boolean)))
+    .filter(d => d.toLowerCase().includes(q) || normKey(d).includes(qn)).slice(0, 3);
+  if (duaRes.length) groups.push({ title: 'Trazabilidad por DUA', items: duaRes.map(d => ({
+    label: '<span class="mono">DUA ' + esc(d) + '</span>',
+    sub: 'Ver trazabilidad completa: movimientos, posiciones y saldo vigente',
+    go: () => openTrazabilidadDuaModal(d) })) });
+
   // Posiciones (coordenadas)
   const st = stockPorCoord();
   const posRes = [];
@@ -3826,7 +3849,8 @@ RENDERERS.panel = function () {
   el.innerHTML =
     viewHead('Panel operativo', 'Resumen ejecutivo del depósito fiscal en tiempo real · los valores se recalculan desde los movimientos',
       '<button class="btn primary" id="pbNuevo">' + ICONS.plus + ' Nuevo movimiento</button>' +
-      '<button class="btn" id="pbTraslado">' + ICONS.swap + ' Traslado</button>') +
+      '<button class="btn" id="pbTraslado">' + ICONS.swap + ' Traslado</button>' +
+      '<button class="btn" id="pbDUA">' + ICONS.search + ' Trazabilidad DUA</button>') +
     alerts.join('') +
     (typeof drivePanelCardHTML === 'function' ? drivePanelCardHTML() : '') +
     kpiCardsHTML(k) +
@@ -3859,6 +3883,7 @@ RENDERERS.panel = function () {
   if (typeof bindDrivePanelCard === 'function') bindDrivePanelCard();
   $('#pbNuevo').onclick = () => openMovModal();
   $('#pbTraslado').onclick = () => openTrasladoModal();
+  $('#pbDUA').onclick = () => openTrazabilidadDuaModal();
   $('#mapRack').onchange = e => { MAP_F.rack = e.target.value; renderRackMap(); };
   $('#mapEstado').onchange = e => { MAP_F.estado = e.target.value; renderRackMap(); };
   $('#mapQ').oninput = debounce(e => { MAP_F.q = e.target.value; renderRackMap(); }, 120);
@@ -4203,7 +4228,8 @@ RENDERERS.pos = function (patch) {
   const el = $('#view-pos');
   if (dbIsEmpty()) { el.innerHTML = viewHead('Inventario por posición', 'Agrupado por N.º stock, cliente, producto, medida y coordenada') + emptyState('Sin movimientos cargados', true) + bindEmptyCTA(); return; }
   el.innerHTML =
-    viewHead('Inventario por posición', 'Cada línea agrupa los movimientos por la clave <b>(N.º stock · Cliente · Producto · Medida · Coordenada)</b>. El stock se calcula desde Movimientos; una misma coordenada puede tener varias líneas (palet compartido).') +
+    viewHead('Inventario por posición', 'Cada línea agrupa los movimientos por la clave <b>(N.º stock · Cliente · Producto · Medida · Coordenada)</b>. El stock se calcula desde Movimientos; una misma coordenada puede tener varias líneas (palet compartido).',
+      '<button class="btn" id="posListado">' + ICONS.print + ' Listado de pallets</button>') +
     '<div class="filterbar">' +
       '<div class="search-box">' + ICONS.search + '<input id="posQ" placeholder="Buscar por producto, cliente, N.º stock o coordenada…" value="' + esc(POS_F.q) + '"></div>' +
       '<select id="posEstado"><option value="todos">Todos los estados</option><option>OK</option><option>SIN STOCK</option><option>REVISAR SALDO</option></select>' +
@@ -4211,6 +4237,7 @@ RENDERERS.pos = function (patch) {
       '<span class="filter-count" id="posCount"></span>' +
     '</div>' +
     '<div id="posTbl"></div>';
+  $('#posListado').onclick = () => openListadoPalletsModal();
   $('#posEstado').value = POS_F.estado;
   $('#posSolo').checked = POS_F.soloSaldo;
   $('#posQ').oninput = debounce(e => { POS_F.q = e.target.value; updatePosTbl(); }, 140);
@@ -4539,6 +4566,7 @@ RENDERERS.aduana = function (patch) {
   const conSaldo = dues.filter(d => d.saldo > 0).length;
   el.innerHTML =
     viewHead('Aduana / DUA · control fiscal', 'Saldos, trazabilidad y permanencia de la mercadería por <b>DUA</b>. Los días de permanencia se calculan desde el primer movimiento de cada DUA; el estado documental es editable por el administrador.',
+      '<button class="btn primary" id="aduTraza">' + ICONS.search + ' Trazabilidad por DUA</button>' +
       '<button class="btn" id="aduCsv">' + ICONS.download + ' CSV</button>') +
     '<div class="kpi-grid">' +
       '<div class="kpi"><div class="kpi-label">DUAs registrados</div><div class="kpi-value">' + fmtInt(dues.length) + '</div><div class="kpi-sub">Documentos únicos con movimientos</div></div>' +
@@ -4552,6 +4580,7 @@ RENDERERS.aduana = function (patch) {
       '<span class="filter-count" id="aduCount"></span>' +
     '</div>' +
     '<div id="aduTbl"></div>';
+  $('#aduTraza').onclick = () => openTrazabilidadDuaModal(ADU_F.q || '');
   $('#aduCsv').onclick = () => {
     descargarCSV('aduana_dua_' + todayISO() + '.csv',
       ['DUA', 'Clientes', 'Contenedores', 'N.º stock', 'Cajas ingresadas', 'Cajas egresadas', 'Saldo', 'Primer movimiento', 'Días de permanencia', 'Estado documental', 'Observaciones', 'Movimientos'],
@@ -4954,7 +4983,7 @@ function openMovModal(mov, linea, tipoFijo) {
         fieldHTML('mv-motivo', 'Motivo de la corrección (opcional)', inp('mv-motivo', '', 'placeholder="ej. cantidad mal cargada, corrigió proveedor"'), 'Se registra en las observaciones y en la auditoría') + '</div>' : '') +
       '<div class="alert info" style="margin:12px 0 0">' + ICONS.alert + '<div id="mv-preview"></div></div>',
     foot: '<button class="btn" id="mvCancel">Cancelar</button>' +
-      (editing ? '' : '<button class="btn" id="mvSavePrint">' + ICONS.print + ' Registrar e imprimir remito</button>') +
+      (editing ? '' : '<button class="btn" id="mvSavePrint">' + ICONS.print + ' Registrar e imprimir comprobante</button>') +
       '<button class="btn primary" id="mvSave">' + (editing ? 'Guardar cambios' : 'Registrar movimiento') + '</button>',
     onOpen() {
       const coord = $('#mv-coord');
@@ -5087,7 +5116,9 @@ function openTrasladoModal(linea) {
         fieldHTML('tr-med', 'Medida', inp('tr-med', linea ? linea.medida : '', 'list="dl-med"')) +
         fieldHTML('tr-obs', 'Observaciones', inp('tr-obs', '', 'placeholder="ej. 1 pallet"')) +
       '</div>',
-    foot: '<button class="btn" id="trCancel">Cancelar</button><button class="btn primary" id="trSave">' + ICONS.swap + ' Generar traslado (2 movimientos)</button>',
+    foot: '<button class="btn" id="trCancel">Cancelar</button>' +
+      '<button class="btn" id="trSavePrint">' + ICONS.print + ' Registrar e imprimir comprobante</button>' +
+      '<button class="btn primary" id="trSave">' + ICONS.swap + ' Generar traslado (2 movimientos)</button>',
     onOpen() {
       let itemSel = linea ? linea.key : '';
       const renderItems = () => {
@@ -5125,7 +5156,9 @@ function openTrasladoModal(linea) {
       $('#tr-origen').onchange = () => { itemSel = ''; renderItems(); };
       if (linea) renderItems();
       $('#trCancel').onclick = closeModal;
-      $('#trSave').onclick = () => {
+      $('#trSave').onclick = () => guardar(false);
+      $('#trSavePrint').onclick = () => guardar(true);
+      const guardar = (conPrint) => {
         clearInvalid();
         const get = id => $('#' + id).value.trim();
         const origen = get('tr-origen'), destino = get('tr-destino');
@@ -5148,13 +5181,16 @@ function openTrasladoModal(linea) {
         if (l && l.coordenada === origen && cant > l.stock) {
           toast('Atención: la cantidad supera el saldo del ítem', 'warn', 'Saldo del ítem en ' + origen + ': ' + fmtInt(l.stock) + ' cajas. El traslado se registró igualmente.');
         }
-        DB.movimientos.push({ id: uid(), n: nextN(), ...base, tipo: 'Egreso', coordenada: origen, refDoc: 'Traslado a ' + destino, obs: (base.obs ? base.obs + ' · ' : '') + 'Traslado a ' + destino, impacto: -cant });
-        DB.movimientos.push({ id: uid(), n: nextN(), ...base, tipo: 'Ingreso', coordenada: destino, refDoc: 'Traslado desde ' + origen, obs: (base.obs ? base.obs + ' · ' : '') + 'Traslado desde ' + origen, impacto: cant });
+        const eg = { id: uid(), n: nextN(), ...base, tipo: 'Egreso', coordenada: origen, refDoc: 'Traslado a ' + destino, obs: (base.obs ? base.obs + ' · ' : '') + 'Traslado a ' + destino, impacto: -cant };
+        const ingr = { id: uid(), n: nextN(), ...base, tipo: 'Ingreso', coordenada: destino, refDoc: 'Traslado desde ' + origen, obs: (base.obs ? base.obs + ' · ' : '') + 'Traslado desde ' + origen, impacto: cant };
+        DB.movimientos.push(eg);
+        DB.movimientos.push(ingr);
         ensureInCatalog(base.producto, base.medida, base.cliente);
         auditar('Traslado registrado', fmtInt(cant) + ' cajas · ' + (base.producto || '—') + ' · ' + origen + ' → ' + destino);
         dataChanged();
         closeModal();
         toast('Traslado registrado', 'ok', fmtInt(cant) + ' cajas de ' + origen + ' a ' + destino + ' (egreso + ingreso automáticos).');
+        if (conPrint) imprimirComprobanteMovs([eg, ingr], 'Traslado ' + origen + ' → ' + destino);
         if (currentView === 'movs') RENDERERS.movs();
       };
     },
@@ -5753,9 +5789,12 @@ function openEtiquetasLoteModal(movs) {
     body: '<div class="etq-preview etq-grid">' + movs.map(m =>
       etiquetaHTML(m.coordenada, [['POSICIÓN', m.coordenada], ['N.º STOCK', m.nroStock || '0'], ['CLIENTE', m.cliente || '—'], ['PRODUCTO', m.producto || '—'], ['MEDIDA', m.medida || '—'], ['CAJAS', fmtInt(m.cantidad)]],
         [m.coordenada, m.nroStock, m.producto, m.medida, fmtInt(m.cantidad) + ' cajas', m.fecha].join(' | '))).join('') + '</div>',
-    foot: '<button class="btn" id="etlCancel">Cerrar</button><button class="btn primary" id="etlPrint">' + ICONS.print + ' Imprimir ' + movs.length + ' etiqueta(s)</button>',
+    foot: '<button class="btn" id="etlCancel">Cerrar</button>' +
+      '<button class="btn" id="etlComp">' + ICONS.print + ' Comprobante del ingreso</button>' +
+      '<button class="btn primary" id="etlPrint">' + ICONS.print + ' Imprimir ' + movs.length + ' etiqueta(s)</button>',
     onOpen() {
       $('#etlCancel').onclick = closeModal;
+      $('#etlComp').onclick = () => imprimirComprobanteMovs(movs, 'Ingreso por contenedor / DUA');
       $('#etlPrint').onclick = () => {
         const etqs = $$('#modalBox .etq').map(e => e.outerHTML).join('');
         imprimirHTML('Etiquetas de pallets (' + movs.length + ')', etqs);
@@ -5763,27 +5802,7 @@ function openEtiquetasLoteModal(movs) {
     },
   });
 }
-function imprimirRemito(mov) {
-  if (!mov) return;
-  const filas = [
-    ['Fecha', fmtDate(mov.fecha)], ['Tipo de movimiento', mov.tipo],
-    ['N.º stock', mov.nroStock || '0'], ['Cliente', mov.cliente || '—'],
-    ['Contenedor', mov.contenedor && mov.contenedor !== '0' ? mov.contenedor : '—'], ['DUA', mov.dua || '—'],
-    ['Producto', mov.producto || '—'], ['Medida', mov.medida || '—'],
-    ['Coordenada', mov.coordenada], ['Cantidad (cajas)', fmtInt(mov.cantidad)],
-    ['Ref. / documento', mov.refDoc || '—'], ['Impacto stock', (impactoDe(mov) > 0 ? '+' : '') + fmtInt(impactoDe(mov))],
-  ];
-  const cuerpo =
-    '<div class="remito">' +
-      '<div class="remito-titulo">COMPROBANTE DE ' + esc(String(mov.tipo).toUpperCase()) + ' DE DEPÓSITO FISCAL</div>' +
-      '<table class="print-tbl"><tr><th>Campo</th><th>Detalle</th></tr>' +
-      filas.map(f => '<tr><td><b>' + esc(f[0]) + '</b></td><td>' + esc(f[1]) + '</td></tr>').join('') + '</table>' +
-      (mov.obs ? '<p class="remito-obs"><b>Observaciones:</b> ' + esc(mov.obs) + '</p>' : '') +
-      '<p class="remito-obs"><b>Registrado por:</b> ' + (esAdmin() ? 'Administrador' : 'Operario') + ' · Documento generado por el WMS DAP1914</p>' +
-      '<div class="remito-firmas"><div><span>Operario</span><i></i></div><div><span>Conforme / Chofer</span><i></i></div></div>' +
-    '</div>';
-  imprimirHTML('Remito · ' + mov.tipo + ' · ' + (mov.producto || '—'), cuerpo);
-}
+/* imprimirRemito vive en app_oper.js: comprobante unificado de 1..N movimientos */
 
 /* ============================================================
    MODAL · Configuración (rol, PIN, respaldos/snapshots)
@@ -6371,6 +6390,394 @@ async function restoreJSON(file) {
 </script>
 <script>
 /* ============================================================
+   OPERACIÓN · Comprobantes imprimibles, trazabilidad por DUA
+   y listado imprimible de pallets
+   ============================================================ */
+'use strict';
+
+/* ---------- Helpers de sector y sello de emisión ---------- */
+function sectorDeCoord(c) {
+  const s = String(c == null ? '' : c).trim().toUpperCase();
+  if (!s) return '—';
+  if (s === 'PISO' || s === 'P') return 'Piso';
+  if (s[0] === 'A') return 'Rack A';
+  if (s[0] === 'B') return 'Rack B';
+  return '—';
+}
+function stampNow() {
+  const d = new Date();
+  return fmtDate(todayISO()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+
+/* ============================================================
+   1 · COMPROBANTE DE INGRESO / EGRESO / TRASLADO (impresión limpia)
+   Encabezado del depósito (lo pone imprimirHTML), fecha y hora de
+   emisión, cliente, DUA y/o contenedor, detalle por posición con
+   sector (Rack A / Rack B / Piso), cantidades y espacio de firmas.
+   Funciona para 1..N movimientos (carga por contenedor, traslado).
+   ============================================================ */
+function comprobanteBodyHTML(movs, titulo) {
+  const lista = (movs || []).slice().sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || (a.n || 0) - (b.n || 0));
+  if (!lista.length) return '';
+  const m0 = lista[0];
+  const tipos = Array.from(new Set(lista.map(m => m.tipo))).join(' / ');
+  const clientes = Array.from(new Set(lista.map(m => m.cliente).filter(Boolean)));
+  const duas = Array.from(new Set(lista.map(m => String(m.dua == null ? '' : m.dua).trim()).filter(Boolean)));
+  const conts = Array.from(new Set(lista.map(m => String(m.contenedor == null ? '' : m.contenedor).trim()).filter(c => c && c !== '0')));
+  const total = lista.reduce((a, m) => a + Math.abs(Number(m.cantidad) || 0), 0);
+  const obss = Array.from(new Set(lista.map(m => String(m.obs || '').trim()).filter(Boolean)));
+  const th = (t, num) => '<th' + (num ? ' class="num"' : '') + '>' + esc(t) + '</th>';
+  const cuerpo =
+    '<div class="remito">' +
+      '<div class="remito-titulo">COMPROBANTE DE ' + esc(String(tipos).toUpperCase()) + ' DE DEPÓSITO FISCAL</div>' +
+      '<div class="remito-meta"><b>Emitido el ' + esc(stampNow()) + '</b> · ' + esc(titulo || 'Comprobante de depósito fiscal DAP1914') +
+        ' · ' + lista.length + ' posición(es)</div>' +
+      '<table class="print-tbl remito-datos"><tr>' +
+        '<th>Cliente</th><th>DUA</th><th>Contenedor</th><th>Fecha del movimiento</th><th class="num">Posiciones</th><th class="num">Total cajas</th></tr>' +
+        '<tr><td>' + esc(clientes.join(' · ') || '—') + '</td><td>' + esc(duas.join(' · ') || '—') + '</td>' +
+        '<td>' + esc(conts.join(' · ') || '—') + '</td><td>' + esc(fmtDate(m0.fecha)) + '</td>' +
+        '<td class="num">' + lista.length + '</td><td class="num"><b>' + fmtInt(total) + '</b></td></tr></table>' +
+      '<table class="print-tbl remito-detalle"><tr>' +
+        th('Posición') + th('Sector') + th('N.º stock') + th('Producto / SKU') + th('Medida') + th('Cajas', true) + th('Ref. / documento') + '</tr>' +
+        lista.map(m =>
+          '<tr><td class="mono"><b>' + esc(m.coordenada) + '</b></td><td>' + esc(sectorDeCoord(m.coordenada)) + '</td>' +
+          '<td class="mono">' + esc(m.nroStock || '0') + '</td><td>' + esc(m.producto || '—') + '</td>' +
+          '<td>' + esc(m.medida || '—') + '</td><td class="num">' + fmtInt(m.cantidad) + '</td>' +
+          '<td>' + esc(m.refDoc || '—') + '</td></tr>').join('') +
+        '<tr><td colspan="5"><b>TOTAL</b></td><td class="num"><b>' + fmtInt(total) + '</b></td><td></td></tr>' +
+      '</table>' +
+      (obss.length ? '<p class="remito-obs"><b>Observaciones:</b> ' + esc(obss.join(' · ')) + '</p>' : '') +
+      '<p class="remito-obs"><b>Registrado por:</b> ' + (esAdmin() ? 'Administrador' : 'Operario') + ' · Documento generado por el WMS DAP1914 el ' + esc(stampNow()) + '</p>' +
+      '<div class="remito-firmas"><div><span>Operario</span><i></i></div><div><span>Conforme / Chofer</span><i></i></div><div><span>Control depósito</span><i></i></div></div>' +
+    '</div>';
+  return cuerpo;
+}
+function imprimirComprobanteMovs(movs, titulo) {
+  const body = comprobanteBodyHTML(movs, titulo);
+  if (!body) { toast('No hay movimientos para el comprobante', 'warn'); return; }
+  const tipos = Array.from(new Set((movs || []).map(m => m.tipo))).join(' / ');
+  imprimirHTML('Comprobante de ' + tipos + ' · ' + (titulo || 'Depósito Fiscal DAP1914'), body);
+}
+/* Remito individual (mismo comprobante, un movimiento) */
+function imprimirRemito(mov) {
+  if (!mov) return;
+  imprimirComprobanteMovs([mov], 'Comprobante de ' + String(mov.tipo || '').toLowerCase() + ' · ' + (mov.producto || '—'));
+}
+
+/* ============================================================
+   2 · TRAZABILIDAD POR DUA
+   ============================================================ */
+function lineasDeDUA(dua) {
+  const duaS = String(dua == null ? '' : dua).trim();
+  if (!duaS) return [];
+  const claves = new Set();
+  for (const m of DB.movimientos) {
+    if (String(m.dua == null ? '' : m.dua).trim() !== duaS) continue;
+    const coord = normCoord(m.coordenada);
+    if (!coord) continue;
+    claves.add([String(m.nroStock ?? ''), m.cliente || '', m.producto || '', normKey(m.medida), coord].join('§'));
+  }
+  if (!claves.size) return [];
+  return lineasInventarioCache().filter(l => claves.has(l.key));
+}
+function movsDeDUA(dua) {
+  const duaS = String(dua == null ? '' : dua).trim();
+  return DB.movimientos.filter(m => String(m.dua == null ? '' : m.dua).trim() === duaS)
+    .slice().sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || (a.n || 0) - (b.n || 0));
+}
+function trazaBodyHTML(dua) {
+  const duaS = String(dua == null ? '' : dua).trim();
+  const d = resumenPorDUA().find(x => x.dua === duaS);
+  const movs = movsDeDUA(duaS);
+  const lineas = lineasDeDUA(duaS).filter(l => l.stock > 0);
+  const totalVig = lineas.reduce((a, l) => a + Math.max(0, l.stock), 0);
+  const dias = d ? diasDesde(d.primerFecha) : null;
+  const th = (t, num) => '<th' + (num ? ' class="num"' : '') + '>' + esc(t) + '</th>';
+  const td = (v, cls) => '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + esc(v == null || v === '' ? '—' : v) + '</td>';
+  let html =
+    '<div class="remito">' +
+      '<div class="remito-titulo">TRAZABILIDAD DEL DUA ' + esc(duaS) + '</div>' +
+      '<div class="remito-meta"><b>Emitido el ' + esc(stampNow()) + '</b> · Depósito Fiscal DAP1914</div>' +
+      '<table class="print-tbl remito-datos"><tr>' +
+        th('Cliente(s)') + th('Contenedor(es)') + th('Cajas ingresadas') + th('Cajas egresadas') + th('Saldo vigente') + th('Días de permanencia') + th('Estado documental') + '</tr>' +
+        '<tr>' + td(d ? Array.from(d.clientes).join(' · ') : '') + td(d ? Array.from(d.contenedores).join(' · ') : '') +
+        '<td class="num">' + (d ? fmtInt(d.ingreso) : '0') + '</td><td class="num">' + (d ? fmtInt(d.egreso) : '0') + '</td>' +
+        '<td class="num"><b>' + (d ? fmtInt(d.saldo) : '0') + '</b></td>' +
+        '<td class="num">' + (dias == null ? '—' : dias + ' días') + '</td>' + td(d ? estadoAduanaDe(duaS) : '') + '</tr></table>' +
+      '<div class="remito-sub">MOVIMIENTOS DEL DUA (' + movs.length + ')</div>' +
+      '<table class="print-tbl"><tr>' + th('Fecha') + th('Tipo') + th('N.º stock') + th('Producto') + th('Medida') + th('Posición') + th('Cajas', true) + th('Ref.') + '</tr>' +
+        (movs.length ? movs.map(m =>
+          '<tr>' + td(fmtDate(m.fecha)) + td(m.tipo) + td(m.nroStock || '0', 'mono') + td(m.producto) + td(m.medida || '0') +
+          '<td>' + esc(m.coordenada) + ' <small>(' + esc(sectorDeCoord(m.coordenada)) + ')</small></td>' +
+          '<td class="num">' + esc((impactoDe(m) > 0 ? '+' : '') + fmtInt(Math.abs(m.cantidad))) + '</td>' + td(m.refDoc) + '</tr>').join('')
+        : '<tr><td colspan="8" style="text-align:center">Sin movimientos para este DUA</td></tr>') + '</table>' +
+      '<div class="remito-sub">POSICIONES VIGENTES ASOCIADAS (' + lineas.length + ')</div>' +
+      '<table class="print-tbl"><tr>' + th('Posición') + th('Sector') + th('N.º stock') + th('Cliente') + th('Producto') + th('Medida') + th('Cajas', true) + th('Última ref.') + '</tr>' +
+        (lineas.length ? lineas.map(l =>
+          '<tr>' + td(l.coordenada, 'mono') + td(sectorDeCoord(l.coordenada)) + td(l.nroStock || '0', 'mono') + td(l.cliente) +
+          td(l.producto) + td(l.medida || '0') + '<td class="num"><b>' + fmtInt(l.stock) + '</b></td>' + td(l.ultimoRef) + '</tr>').join('')
+        : '<tr><td colspan="8" style="text-align:center">Sin mercadería vigente de este DUA en depósito</td></tr>') +
+        '<tr><td colspan="6"><b>SALDO VIGENTE TOTAL</b></td><td class="num"><b>' + fmtInt(totalVig) + '</b></td><td></td></tr>' +
+      '</table>' +
+      '<p class="remito-obs"><b>Registrado por:</b> ' + (esAdmin() ? 'Administrador' : 'Operario') + ' · Documento generado por el WMS DAP1914 el ' + esc(stampNow()) + '</p>' +
+    '</div>';
+  return html;
+}
+function imprimirTrazabilidadDUA(dua) {
+  const duaS = String(dua == null ? '' : dua).trim();
+  if (!duaS || !movsDeDUA(duaS).length) { toast('Primero elegí un DUA con movimientos', 'warn'); return; }
+  imprimirHTML('Trazabilidad del DUA ' + duaS, trazaBodyHTML(duaS));
+}
+function csvTrazabilidadDUA(dua) {
+  const duaS = String(dua == null ? '' : dua).trim();
+  const movs = movsDeDUA(duaS);
+  if (!movs.length) { toast('Primero elegí un DUA con movimientos', 'warn'); return; }
+  descargarCSV('trazabilidad_DUA_' + duaS.replace(/[^\w.-]+/g, '_') + '_' + todayISO() + '.csv',
+    ['Fecha', 'Tipo', 'N.º stock', 'Cliente', 'Producto', 'Medida', 'Coordenada', 'Sector', 'Cajas', 'Impacto', 'Contenedor', 'Ref.', 'Observaciones'],
+    movs.map(m => [m.fecha, m.tipo, m.nroStock || '0', m.cliente, m.producto, m.medida || '0', m.coordenada, sectorDeCoord(m.coordenada),
+      m.cantidad, impactoDe(m), m.contenedor && m.contenedor !== '0' ? m.contenedor : '', m.refDoc, m.obs]));
+  auditar('CSV de trazabilidad exportado', 'DUA ' + duaS + ' · ' + movs.length + ' movimientos');
+}
+function openTrazabilidadDuaModal(duaInicial) {
+  const duas = resumenPorDUA().map(d => d.dua);
+  openModal({
+    title: 'Trazabilidad por DUA',
+    sub: 'Todos los registros vinculados a un DUA: ingresos, egresos, traslados, posiciones y saldo vigente. Imprimible y exportable.',
+    size: 'wide',
+    body:
+      '<div class="traza-search">' +
+        '<div class="search-box" style="flex:1">' + ICONS.search + '<input id="tz-dua" list="dl-tzduas" placeholder="Ingresá o elegí el DUA (ej. ' + esc(duas[0] || '819365') + ')…" value="' + esc(duaInicial || '') + '" autocomplete="off"></div>' +
+        '<datalist id="dl-tzduas">' + duas.map(d => '<option value="' + esc(d) + '">').join('') + '</datalist>' +
+        '<button class="btn primary" id="tz-go">' + ICONS.search + ' Ver trazabilidad</button>' +
+      '</div>' +
+      '<div id="tz-body">' + (duas.length ? '' : '<div class="alert info">' + ICONS.alert + '<div>Todavía no hay DUAs registrados en los movimientos.</div></div>') + '</div>',
+    foot: '<button class="btn" id="tzClose">Cerrar</button>',
+    onOpen() {
+      $('#tzClose').onclick = closeModal;
+      const buscar = () => renderTzBody($('#tz-dua').value.trim());
+      $('#tz-go').onclick = buscar;
+      $('#tz-dua').onkeydown = e => { if (e.key === 'Enter') buscar(); };
+      if (duaInicial) { $('#tz-dua').value = String(duaInicial).trim(); buscar(); }
+      else if (duas.length === 1) { $('#tz-dua').value = duas[0]; buscar(); }
+      setTimeout(() => $('#tz-dua').focus(), 80);
+    },
+  });
+}
+function renderTzBody(dua) {
+  const box = $('#tz-body');
+  if (!box) return;
+  const duaS = String(dua == null ? '' : dua).trim();
+  if (!duaS) { box.innerHTML = '<div class="alert warn">' + ICONS.alert + '<div>Escribí el DUA que querés rastrear.</div></div>'; return; }
+  const d = resumenPorDUA().find(x => x.dua === duaS);
+  if (!d) {
+    box.innerHTML = '<div class="alert warn">' + ICONS.alert + '<div><b>No hay movimientos con el DUA «' + esc(duaS) + '».</b> Revisá el número o buscálo en Aduana / DUA.</div></div>';
+    return;
+  }
+  const movs = movsDeDUA(duaS);
+  const lineas = lineasDeDUA(duaS).filter(l => l.stock > 0);
+  const totalVig = lineas.reduce((a, l) => a + Math.max(0, l.stock), 0);
+  const dias = diasDesde(d.primerFecha);
+  const claseDias = dias == null ? '' : clasePermanencia(dias);
+  box.innerHTML =
+    '<div class="drive-actions" style="margin:2px 0 12px">' +
+      '<button class="btn primary" id="tzPrint">' + ICONS.print + ' Imprimir trazabilidad</button>' +
+      '<button class="btn" id="tzComp">' + ICONS.print + ' Comprobante de ingreso</button>' +
+      '<button class="btn" id="tzCsv">' + ICONS.download + ' Exportar CSV</button>' +
+      '<button class="btn" id="tzMail">' + ICONS.mail + ' Enviar por correo</button>' +
+      '<button class="btn" id="tzDocs">' + ICONS.folder + ' Documentación en Drive</button>' +
+    '</div>' +
+    '<div class="drive-stats" style="margin-bottom:12px">' +
+      '<div class="stat-mini"><span class="v ' + (d.saldo > 0 ? '' : 'muted') + '">' + fmtInt(d.saldo) + '</span><span class="l">Saldo vigente (cajas)</span></div>' +
+      '<div class="stat-mini"><span class="v">+' + fmtInt(d.ingreso) + '</span><span class="l">Cajas ingresadas</span></div>' +
+      '<div class="stat-mini"><span class="v">-' + fmtInt(d.egreso) + '</span><span class="l">Cajas egresadas</span></div>' +
+      '<div class="stat-mini"><span class="v ' + claseDias + '">' + (dias == null ? '—' : dias) + '</span><span class="l">Días de permanencia</span></div>' +
+      '<div class="stat-mini"><span class="v">' + esc(estadoAduanaDe(duaS)) + '</span><span class="l">Estado documental</span></div>' +
+    '</div>' +
+    '<div class="tz-note">' +
+      '<span><b>' + esc(Array.from(d.clientes).join(' · ') || '—') + '</b></span>' +
+      (d.contenedores.size ? '<span>Contenedor(es): <b class="mono">' + esc(Array.from(d.contenedores).join(' · ')) + '</b></span>' : '') +
+      '<span>Primer movimiento: <b>' + esc(fmtDate(d.primerFecha)) + '</b> · Último: <b>' + esc(fmtDate(d.ultimaFecha)) + '</b> · ' + fmtInt(d.nMovs) + ' movimiento(s)</span>' +
+    '</div>' +
+    '<div class="form-section">Movimientos (' + movs.length + ')</div>' +
+    '<div class="tbl-wrap" style="box-shadow:none;border:0;max-height:34vh"><table class="tbl"><thead><tr><th>Fecha</th><th>Tipo</th><th>N.º stock</th><th>Producto</th><th>Medida</th><th>Posición</th><th class="num">Cajas</th><th>Ref.</th></tr></thead><tbody>' +
+      movs.map(m => '<tr><td class="mono">' + esc(fmtDate(m.fecha)) + '</td><td>' + badgeTipo(m.tipo) + '</td><td class="mono">' + esc(m.nroStock || '0') + '</td>' +
+        '<td class="strong">' + esc(m.producto || '—') + '</td><td>' + esc(m.medida || '—') + '</td>' +
+        '<td class="coord">' + esc(m.coordenada) + '</td><td class="num ' + (impactoDe(m) > 0 ? 'plus' : 'minus') + '">' + (impactoDe(m) > 0 ? '+' : '') + fmtInt(Math.abs(m.cantidad)) + '</td>' +
+        '<td>' + esc(m.refDoc || '—') + '</td></tr>').join('') + '</tbody></table></div>' +
+    '<div class="form-section">Posiciones vigentes asociadas (' + lineas.length + ' · ' + fmtInt(totalVig) + ' cajas)</div>' +
+    (lineas.length
+      ? '<div class="tbl-wrap" style="box-shadow:none;border:0;max-height:30vh"><table class="tbl"><thead><tr><th>Posición</th><th>Sector</th><th>N.º stock</th><th>Producto</th><th>Medida</th><th class="num">Cajas</th><th>Última ref.</th></tr></thead><tbody>' +
+        lineas.map(l => '<tr><td class="coord strong">' + esc(l.coordenada) + '</td><td>' + esc(sectorDeCoord(l.coordenada)) + '</td><td class="mono">' + esc(l.nroStock || '0') + '</td>' +
+          '<td class="strong">' + esc(l.producto || '—') + '</td><td>' + esc(l.medida || '—') + '</td><td class="num strong">' + fmtInt(l.stock) + '</td>' +
+          '<td>' + esc(l.ultimoRef || '—') + '</td></tr>').join('') + '</tbody></table></div>'
+      : '<div class="alert info">' + ICONS.alert + '<div>Toda la mercadería de este DUA ya egresó: no queda stock vigente en depósito.</div></div>');
+  $('#tzPrint').onclick = () => imprimirTrazabilidadDUA(duaS);
+  $('#tzComp').onclick = () => {
+    const ing = movs.filter(m => impactoDe(m) > 0);
+    if (!ing.length) { toast('Este DUA no tiene ingresos registrados', 'warn'); return; }
+    imprimirComprobanteMovs(ing, 'Ingreso del DUA ' + duaS);
+  };
+  $('#tzCsv').onclick = () => csvTrazabilidadDUA(duaS);
+  $('#tzMail').onclick = () => {
+    openEmailModal({
+      subject: 'Trazabilidad del DUA ' + duaS + ' · Depósito Fiscal DAP1914 · ' + fmtDate(todayISO()),
+      body: 'Hola,\n\nAdjuntamos la trazabilidad completa del DUA ' + duaS + ' en el depósito fiscal DAP1914:\n\n' +
+        '- Cajas ingresadas: ' + fmtInt(d.ingreso) + '\n- Cajas egresadas: ' + fmtInt(d.egreso) + '\n- Saldo vigente: ' + fmtInt(d.saldo) + ' cajas en ' + lineas.length + ' posición(es)\n' +
+        '- Días de permanencia: ' + (dias == null ? '—' : dias) + '\n- Estado documental: ' + estadoAduanaDe(duaS) + '\n\n' +
+        'Quedamos a disposición ante cualquier consulta.\n\nWMS · Control Operativo de Depósito Fiscal — DAP1914',
+      attachments: [
+        { label: 'Trazabilidad del DUA en PDF', sub: 'Resumen, movimientos y posiciones vigentes',
+          build: async () => ({ filename: 'Trazabilidad_DUA_' + String(duaS).replace(/[^\w.-]+/g, '_') + '_' + todayISO() + '.pdf', mime: G_MIME_PDF, bytes: pdfTrazabilidadDUA(duaS) }) },
+        attExcelHoy(),
+        attDocsDUA(duaS),
+      ],
+    });
+  };
+  $('#tzDocs').onclick = () => openDuaDocsModal(duaS);
+}
+
+/* ============================================================
+   3 · LISTADO IMPRIMIBLE DE PALLETS Y SU POSICIÓN
+   ============================================================ */
+const LP_F = { cli: 'todos', sector: 'todos', dua: '' };
+function duaContDeLinea() {
+  /* clave de línea (igual que lineasInventario) → { duas, conts } desde los movimientos */
+  const map = new Map();
+  for (const m of DB.movimientos) {
+    const coord = normCoord(m.coordenada);
+    if (!coord) continue;
+    const key = [String(m.nroStock ?? ''), m.cliente || '', m.producto || '', normKey(m.medida), coord].join('§');
+    let e = map.get(key);
+    if (!e) { e = { duas: new Set(), conts: new Set() }; map.set(key, e); }
+    if (impactoDe(m) > 0 && String(m.dua == null ? '' : m.dua).trim()) e.duas.add(String(m.dua).trim());
+    if (m.contenedor && m.contenedor !== '0') e.conts.add(String(m.contenedor).trim());
+  }
+  return map;
+}
+function palletsActivos() {
+  const mc = duaContDeLinea();
+  return lineasInventarioCache().filter(l => l.stock > 0).map(l => {
+    const e = mc.get(l.key) || { duas: new Set(), conts: new Set() };
+    return { l, sector: sectorDeCoord(l.coordenada), duas: Array.from(e.duas), conts: Array.from(e.conts) };
+  }).sort((a, b) => a.l.coordenada.localeCompare(b.l.coordenada, 'es', { numeric: true }));
+}
+function palletsFiltrados(f) {
+  const q = normKey(f.dua || '');
+  return palletsActivos().filter(r =>
+    (f.cli === 'todos' || r.l.cliente === f.cli) &&
+    (f.sector === 'todos' || r.sector === f.sector) &&
+    (!q || r.duas.some(d => normKey(d).includes(q))));
+}
+function listadoPalletsBodyHTML(rows, f) {
+  const total = rows.reduce((a, r) => a + r.l.stock, 0);
+  const ftxt = [];
+  if (f && f.cli && f.cli !== 'todos') ftxt.push('Cliente: ' + f.cli);
+  if (f && f.sector && f.sector !== 'todos') ftxt.push('Sector: ' + f.sector);
+  if (f && f.dua) ftxt.push('DUA contiene: ' + f.dua);
+  const saldoPal = DB.pallets.reduce((a, p) => a + (Number(p.ingreso) || 0) - (Number(p.egreso) || 0), 0);
+  const th = (t, num) => '<th' + (num ? ' class="num"' : '') + '>' + esc(t) + '</th>';
+  const td = (v, cls) => '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + esc(v == null || v === '' ? '—' : v) + '</td>';
+  let html =
+    '<div class="remito">' +
+      '<div class="remito-titulo">LISTADO DE PALLETS EN DEPÓSITO</div>' +
+      '<div class="remito-meta"><b>Emitido el ' + esc(stampNow()) + '</b> · Depósito Fiscal DAP1914 · ' + rows.length + ' pallet(s) · ' + fmtInt(total) + ' cajas' +
+        (ftxt.length ? ' · Filtros: ' + esc(ftxt.join(' · ')) : ' · Listado completo (todas las posiciones activas)') + '</div>' +
+      '<table class="print-tbl"><tr>' + th('Posición') + th('Sector') + th('Cliente') + th('N.º stock') + th('SKU / Producto') + th('Medida') + th('DUA') + th('Contenedor') + th('Cajas', true) + '</tr>' +
+        (rows.length ? rows.map(r =>
+          '<tr>' + td(r.l.coordenada, 'mono') + td(r.sector) + td(r.l.cliente) + td(r.l.nroStock || '0', 'mono') +
+          td(r.l.producto) + td(r.l.medida || '0') + td(r.duas.join(' · ')) + td(r.conts.join(' · ')) +
+          '<td class="num"><b>' + fmtInt(r.l.stock) + '</b></td></tr>').join('')
+        : '<tr><td colspan="9" style="text-align:center">Sin pallets para los filtros aplicados</td></tr>') +
+        '<tr><td colspan="8"><b>TOTAL</b></td><td class="num"><b>' + fmtInt(total) + '</b></td></tr>' +
+      '</table>' +
+      '<p class="remito-obs"><b>Pallets vacíos:</b> saldo disponible ' + fmtInt(saldoPal) + ' pallet(s) según el registro de PALLETS VACIOS.</p>' +
+      '<p class="remito-obs"><b>Registrado por:</b> ' + (esAdmin() ? 'Administrador' : 'Operario') + ' · Documento generado por el WMS DAP1914 el ' + esc(stampNow()) + '</p>' +
+    '</div>';
+  return html;
+}
+function imprimirListadoPallets(rows, f) {
+  if (!rows || !rows.length) { toast('No hay pallets para los filtros elegidos', 'warn'); return; }
+  imprimirHTML('Listado de pallets en depósito', listadoPalletsBodyHTML(rows, f));
+  auditar('Listado de pallets impreso', rows.length + ' pallet(s) · ' + fmtInt(rows.reduce((a, r) => a + r.l.stock, 0)) + ' cajas');
+}
+function csvListadoPallets(rows) {
+  if (!rows || !rows.length) { toast('No hay pallets para los filtros elegidos', 'warn'); return; }
+  descargarCSV('listado_pallets_' + todayISO() + '.csv',
+    ['Posición', 'Sector', 'Cliente', 'N.º stock', 'Producto', 'Medida', 'DUA', 'Contenedor', 'Cajas'],
+    rows.map(r => [r.l.coordenada, r.sector, r.l.cliente, r.l.nroStock || '0', r.l.producto, r.l.medida || '0', r.duas.join(' · '), r.conts.join(' · '), r.l.stock]));
+  auditar('CSV de pallets exportado', rows.length + ' pallet(s)');
+}
+function openListadoPalletsModal() {
+  if (dbIsEmpty()) { toast('No hay datos cargados todavía', 'warn'); return; }
+  const clientes = Array.from(new Set(DB.clientes.map(c => c.cliente).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es'));
+  openModal({
+    title: 'Listado de pallets y su posición',
+    sub: 'Todos los pallets activos con posición, cliente, SKU, DUA/contenedor y cajas. Filtrá y mandá directo a impresión.',
+    size: 'wide',
+    body:
+      '<div class="listado-filters">' +
+        '<select id="lp-cli"><option value="todos">Todos los clientes</option>' + clientes.map(c => '<option>' + esc(c) + '</option>').join('') + '</select>' +
+        '<select id="lp-sector"><option value="todos">Todos los sectores</option><option value="Rack A">Rack A</option><option value="Rack B">Rack B</option><option value="Piso">Piso</option></select>' +
+        '<div class="search-box" style="flex:1;min-width:170px">' + ICONS.search + '<input id="lp-dua" placeholder="Filtrar por DUA…" autocomplete="off"></div>' +
+        '<span class="filter-count" id="lp-count"></span>' +
+      '</div>' +
+      '<div id="lp-body"></div>',
+    foot:
+      '<button class="btn" id="lpCsv">' + ICONS.download + ' CSV</button>' +
+      '<button class="btn" id="lpMail">' + ICONS.mail + ' Enviar por correo</button>' +
+      '<button class="btn primary" id="lpPrint">' + ICONS.print + ' Imprimir listado filtrado</button>' +
+      '<button class="btn" id="lpPrintAll">' + ICONS.print + ' Imprimir completo</button>' +
+      '<button class="btn ghost" id="lpClose">Cerrar</button>',
+    onOpen() {
+      const refresh = () => {
+        const f = { cli: $('#lp-cli').value, sector: $('#lp-sector').value, dua: $('#lp-dua').value.trim() };
+        const rows = palletsFiltrados(f);
+        const total = rows.reduce((a, r) => a + r.l.stock, 0);
+        $('#lp-count').textContent = rows.length + ' pallet(s) · ' + fmtInt(total) + ' cajas';
+        $('#lp-body').innerHTML =
+          '<div class="tbl-wrap" style="box-shadow:none;border:0;max-height:42vh"><table class="tbl"><thead><tr><th>Posición</th><th>Sector</th><th>Cliente</th><th>N.º stock</th><th>SKU / Producto</th><th>Medida</th><th>DUA</th><th>Contenedor</th><th class="num">Cajas</th></tr></thead><tbody>' +
+          (rows.length ? rows.map(r =>
+            '<tr><td class="coord strong">' + esc(r.l.coordenada) + '</td><td>' + esc(r.sector) + '</td><td>' + esc(r.l.cliente || '—') + '</td>' +
+            '<td class="mono">' + esc(r.l.nroStock || '0') + '</td><td class="strong">' + esc(r.l.producto || '—') + '</td>' +
+            '<td>' + esc(r.l.medida || '—') + '</td><td class="mono">' + esc(r.duas.join(' · ') || '—') + '</td>' +
+            '<td class="mono">' + esc(r.conts.join(' · ') || '—') + '</td><td class="num strong">' + fmtInt(r.l.stock) + '</td></tr>').join('')
+          : '<tr><td colspan="9" style="text-align:center;padding:22px;color:var(--text-3)">Sin pallets para los filtros elegidos.</td></tr>') +
+          '</tbody></table></div>';
+        return { f, rows };
+      };
+      let cur = refresh();
+      $('#lp-cli').onchange = () => { cur = refresh(); };
+      $('#lp-sector').onchange = () => { cur = refresh(); };
+      $('#lp-dua').oninput = debounce(() => { cur = refresh(); }, 160);
+      $('#lpPrint').onclick = () => imprimirListadoPallets(cur.rows, cur.f);
+      $('#lpPrintAll').onclick = () => imprimirListadoPallets(palletsActivos(), { cli: 'todos', sector: 'todos', dua: '' });
+      $('#lpCsv').onclick = () => csvListadoPallets(cur.rows);
+      $('#lpMail').onclick = () => {
+        if (!cur.rows.length) { toast('No hay pallets para los filtros elegidos', 'warn'); return; }
+        const ftxt = [];
+        if (cur.f.cli !== 'todos') ftxt.push('cliente ' + cur.f.cli);
+        if (cur.f.sector !== 'todos') ftxt.push(cur.f.sector);
+        if (cur.f.dua) ftxt.push('DUA ' + cur.f.dua);
+        openEmailModal({
+          subject: 'Listado de pallets en depósito (' + (ftxt.join(' · ') || 'completo') + ') · DAP1914 · ' + fmtDate(todayISO()),
+          body: 'Hola,\n\nAdjuntamos el listado de pallets en depósito del DAP1914' + (ftxt.length ? ' filtrado por ' + ftxt.join(', ') : ' (completo: todas las posiciones activas)') + ':\n\n' +
+            '- Pallets: ' + cur.rows.length + '\n- Total de cajas: ' + fmtInt(cur.rows.reduce((a, r) => a + r.l.stock, 0)) + '\n\n' +
+            'Quedamos a disposición ante cualquier consulta.\n\nWMS · Control Operativo de Depósito Fiscal — DAP1914',
+          attachments: [
+            { label: 'Listado de pallets en PDF', sub: cur.rows.length + ' pallet(s) · filtros: ' + (ftxt.join(' · ') || 'ninguno'),
+              build: async () => ({ filename: 'Listado_pallets_DAP1914_' + todayISO() + '.pdf', mime: G_MIME_PDF, bytes: pdfListadoPallets(cur.rows, cur.f) }) },
+            attExcelHoy(),
+          ],
+        });
+      };
+      $('#lpClose').onclick = closeModal;
+    },
+  });
+}
+
+</script>
+<script>
+/* ============================================================
    GOOGLE · Núcleo de sincronización (OAuth2, Drive, Gmail) y PDF
    Arquitectura monousuario: cuenta del depósito frimaraldap1914@gmail.com
    100% client-side: sin backend, la API REST de Google se consume
@@ -6945,9 +7352,85 @@ function pdfStockPorCliente(cliente) {
   return pdfStockFiltro('STOCK ACTUAL POR CLIENTE · ' + cliente.toUpperCase(), 'Resumen de inventario vigente del cliente en el depósito fiscal · ' + pdfStampStr(), lineas);
 }
 function pdfStockPorDUA(dua) {
-  const lineas = lineasInventarioCache().filter(l =>
-    DB.movimientos.some(m => m.dua === String(dua) && normCoord(m.coordenada) === l.coordenada && normKey(m.producto) === normKey(l.producto) && normKey(m.medida || '0') === normKey(l.medida || '0')));
+  const lineas = lineasDeDUA(dua);
   return pdfStockFiltro('STOCK ASOCIADO AL DUA ' + String(dua).toUpperCase(), 'Mercadería ingresada bajo ese DUA que permanece en el depósito · ' + pdfStampStr(), lineas);
+}
+
+/* ---------- Trazabilidad de un DUA (PDF) ---------- */
+function pdfTrazabilidadDUA(dua) {
+  const doc = pdfDoc({ title: 'Trazabilidad DUA ' + dua });
+  const duaS = String(dua == null ? '' : dua).trim();
+  pdfHead(doc, 'TRAZABILIDAD DEL DUA ' + duaS.toUpperCase(), 'Movimientos, posiciones y saldo vigente · Depósito Fiscal DAP1914 · ' + pdfStampStr());
+  const d = resumenPorDUA().find(x => x.dua === duaS);
+  const movs = movsDeDUA(duaS);
+  const lineas = lineasDeDUA(duaS).filter(l => l.stock > 0);
+  const totalVig = lineas.reduce((a, l) => a + Math.max(0, l.stock), 0);
+  const dias = d ? diasDesde(d.primerFecha) : null;
+  doc.text(doc.M, doc.y, 'F2', 10, 'Resumen', [0.08, 0.2, 0.38]);
+  doc.y -= 6;
+  pdfTabla(doc, [
+    { t: 'Cliente(s)', w: 150 }, { t: 'Contenedor(es)', w: 110 }, { t: 'Ingresadas', w: 65, align: 'R' }, { t: 'Egresadas', w: 65, align: 'R' },
+    { t: 'Saldo vigente', w: 68, align: 'R' }, { t: 'Permanencia', w: 62, align: 'R' }, { t: 'Estado doc.', w: 70 },
+  ], [[
+    d ? Array.from(d.clientes).join(' · ') : '-',
+    d ? Array.from(d.contenedores).join(' · ') : '-',
+    d ? fmtInt(d.ingreso) : '0',
+    d ? fmtInt(d.egreso) : '0',
+    d ? fmtInt(d.saldo) : '0',
+    dias == null ? '-' : dias + ' d',
+    d ? estadoAduanaDe(duaS) : '-',
+  ]]);
+  doc.y -= 14;
+  doc.text(doc.M, doc.y, 'F2', 10, 'Movimientos del DUA (' + movs.length + ')', [0.08, 0.2, 0.38]);
+  doc.y -= 6;
+  const movRows = movs.map(m => [fmtDate(m.fecha), m.tipo, m.nroStock || '0', String(m.producto || '-'), String(m.medida || '0'), String(m.coordenada) + ' (' + sectorDeCoord(m.coordenada) + ')', (impactoDe(m) > 0 ? '+' : '') + fmtInt(Math.abs(m.cantidad)), m.refDoc || '-']);
+  pdfTabla(doc, [
+    { t: 'Fecha', w: 58 }, { t: 'Tipo', w: 50 }, { t: 'N.º stock', w: 55 }, { t: 'Producto', w: 150 },
+    { t: 'Medida', w: 52 }, { t: 'Posición', w: 100 }, { t: 'Cajas', w: 55, align: 'R' },
+  ], movRows.length ? movRows.map(r => [r[0], r[1], r[2], pdfClip(r[3], 28), r[4], pdfClip(r[5], 18), r[6]]) : [['Sin movimientos', '-', '-', '-', '-', '-', '-']]);
+  doc.y -= 14;
+  doc.text(doc.M, doc.y, 'F2', 10, 'Posiciones vigentes (' + lineas.length + ' · ' + fmtInt(totalVig) + ' cajas)', [0.08, 0.2, 0.38]);
+  doc.y -= 6;
+  const linRows = lineas.map(l => [l.coordenada, sectorDeCoord(l.coordenada), l.nroStock || '0', String(l.producto || '-'), String(l.medida || '0'), fmtInt(l.stock)]);
+  pdfTabla(doc, [
+    { t: 'Posición', w: 60 }, { t: 'Sector', w: 60 }, { t: 'N.º stock', w: 70 }, { t: 'Producto', w: 240 }, { t: 'Medida', w: 60 }, { t: 'Cajas', w: 80, align: 'R' },
+  ], linRows.length ? linRows.map(r => [r[0], r[1], r[2], pdfClip(r[3], 44), r[4], r[5]]) : [['Sin mercadería vigente', '-', '-', '-', '-', '-']]);
+  if (lineas.length) {
+    doc.y -= 6;
+    doc.textR(doc.M + doc.CW, doc.y, 'F2', 10, 'SALDO VIGENTE TOTAL: ' + fmtInt(totalVig), [0.08, 0.2, 0.38]);
+  }
+  doc.y -= 14;
+  doc.text(doc.M, doc.y, 'F1', 8, 'Generado el ' + pdfStampStr() + ' · WMS Depósito Fiscal DAP1914', [0.55, 0.58, 0.64]);
+  return doc.build();
+}
+
+/* ---------- Listado de pallets (PDF) ---------- */
+function pdfListadoPallets(rows, f) {
+  const doc = pdfDoc({ title: 'Listado de pallets' });
+  const ftxt = [];
+  if (f && f.cli && f.cli !== 'todos') ftxt.push('Cliente: ' + f.cli);
+  if (f && f.sector && f.sector !== 'todos') ftxt.push('Sector: ' + f.sector);
+  if (f && f.dua) ftxt.push('DUA contiene: ' + f.dua);
+  pdfHead(doc, 'LISTADO DE PALLETS EN DEPÓSITO',
+    (ftxt.length ? 'Filtros: ' + ftxt.join(' · ') : 'Listado completo (todas las posiciones activas)') + ' · ' + pdfStampStr());
+  const total = rows.reduce((a, r) => a + r.l.stock, 0);
+  const rowsOut = rows.map(r => [
+    r.l.coordenada, r.sector, String(r.l.cliente || '-'), r.l.nroStock || '0',
+    pdfClip(String(r.l.producto || '-'), 34), String(r.l.medida || '0'),
+    pdfClip(r.duas.join(' · '), 24), pdfClip(r.conts.join(' · '), 18), fmtInt(r.l.stock),
+  ]);
+  pdfTabla(doc, [
+    { t: 'Posición', w: 52 }, { t: 'Sector', w: 50 }, { t: 'Cliente', w: 78 }, { t: 'N.º stock', w: 52 },
+    { t: 'SKU / Producto', w: 145 }, { t: 'Medida', w: 44 }, { t: 'DUA', w: 78 }, { t: 'Contenedor', w: 56 }, { t: 'Cajas', w: 45, align: 'R' },
+  ], rowsOut.length ? rowsOut : [['Sin pallets para los filtros aplicados', '-', '-', '-', '-', '-', '-', '-', '-']]);
+  doc.y -= 8;
+  doc.text(doc.M, doc.y, 'F2', 10, 'TOTAL: ' + rows.length + ' pallet(s) · ' + fmtInt(total) + ' cajas', [0.08, 0.2, 0.38]);
+  doc.y -= 15;
+  const saldoPal = DB.pallets.reduce((a, p) => a + (Number(p.ingreso) || 0) - (Number(p.egreso) || 0), 0);
+  doc.text(doc.M, doc.y, 'F1', 8.5, 'Pallets vacíos: saldo disponible ' + fmtInt(saldoPal) + ' pallet(s) según el registro de PALLETS VACIOS.', [0.3, 0.34, 0.4]);
+  doc.y -= 14;
+  doc.text(doc.M, doc.y, 'F1', 8, 'Generado el ' + pdfStampStr() + ' · WMS Depósito Fiscal DAP1914', [0.55, 0.58, 0.64]);
+  return doc.build();
 }
 
 /* ---------- Reporte de período (rotación y ocupación) ---------- */

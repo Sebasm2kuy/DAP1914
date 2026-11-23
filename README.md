@@ -96,23 +96,31 @@ El token de acceso vive únicamente en la sesión del navegador (nunca se sube a
 
 ---
 
+## Impresión y trazabilidad operativa
+
+- **Comprobante de ingreso / egreso / traslado** — vista de impresión limpia (Ctrl+P → PDF) con encabezado del depósito, **fecha y hora de emisión**, cliente, **DUA y/o contenedor**, detalle por posición con **sector (Rack A / Rack B / Piso)**, N.º stock, SKU/producto, medida, cantidades, total y **espacio de firmas** (Operario · Conforme/Chofer · Control depósito). Se emite: al confirmar un ingreso («Registrar e imprimir comprobante» en el formulario de movimiento), en la **carga rápida por contenedor** (junto a las etiquetas de lote), en el **traslado** (ambos movimientos), desde cada fila de **Movimientos** y desde la **trazabilidad de un DUA** (comprobante de todos sus ingresos). El mismo comprobante sale en PDF al enviarlo por correo.
+- **Trazabilidad por DUA** — búsqueda rápida desde el botón **«Trazabilidad DUA»** del Panel y de Aduana, y como primera opción de la **búsqueda global** (Ctrl+K): agrupa **todo** lo vinculado al DUA en una sola pantalla — resumen con saldo vigente, cajas ingresadas/egresadas, días de permanencia y estado documental, tabla de **movimientos** (ingresos, egresos y traslados) y tabla de **posiciones vigentes** con su saldo — con botones para **imprimir** la trazabilidad, imprimir el **comprobante de ingreso**, **exportar CSV**, **enviar por correo** (PDF + Excel + documentación) y abrir la **documentación en Drive**.
+- **Listado de pallets y su posición** — desde **Posiciones → «Listado de pallets»**: todos los pallets activos con **Posición/Ubicación, Sector, Cliente, N.º stock, SKU/Producto, Medida, DUA y Contenedor, y Cajas**, con **filtros rápidos** (por cliente, por Rack A / Rack B / Piso y por DUA) y **impresión directa** del listado filtrado o completo — incluye **referencia al saldo de pallets vacíos** — más exportación a CSV y envío por correo (PDF).
+
+---
+
 ## Qué incluye
 
 ### Los 7 módulos de tu planilla (mismas reglas)
 
 | Módulo | Qué hace |
 |---|---|
-| **Panel** | 4 KPIs (Stock actual · cajas, Líneas de inventario con saldo, SKU registrados, Movimientos cargados), stock por producto con %, historial de contenedores/DUA con saldo remanente, **mapa visual interactivo de racks** (clic → detalle, salida, traslado, etiqueta) y **tarjeta de sincronización con Google Drive**. |
+| **Panel** | 4 KPIs (Stock actual · cajas, Líneas de inventario con saldo, SKU registrados, Movimientos cargados), stock por producto con %, historial de contenedores/DUA con saldo remanente, **mapa visual interactivo de racks** (clic → detalle, salida, traslado, etiqueta), **tarjeta de sincronización con Google Drive** y acceso directo a la **trazabilidad por DUA**. |
 | **Stock Actual** | Foto real por posición (A000–A990 y B000–B990 de 10 en 10, más Piso). Stock = Σ impacto de movimientos. Estados automáticos LIBRE / OCUPADO / REVISAR SALDO y **PALET COMPARTIDO (N ítems)** con desglose expandible. |
-| **Movimientos** | Fuente única de verdad con las 13 columnas de tu planilla. Tipos: Ingreso, Egreso, Ajuste +, Ajuste −. **Traslado** que genera el egreso de origen y el ingreso en destino. Cada fila: **remito imprimible** y **envío del comprobante por correo**. |
-| **Posiciones** | Inventario por la clave (N.º stock · Cliente · Producto · Medida normalizada · Coordenada) con estado OK / SIN STOCK / REVISAR SALDO. |
+| **Movimientos** | Fuente única de verdad con las 13 columnas de tu planilla. Tipos: Ingreso, Egreso, Ajuste +, Ajuste −. **Traslado** que genera el egreso de origen y el ingreso en destino. Cada fila: **comprobante imprimible** y **envío del comprobante por correo**. |
+| **Posiciones** | Inventario por la clave (N.º stock · Cliente · Producto · Medida normalizada · Coordenada) con estado OK / SIN STOCK / REVISAR SALDO + **listado imprimible de pallets con filtros**. |
 | **Resumen SKU** | Consolidado por (Producto + Medida) — agrupa mayúsculas/minúsculas y ×/x — con cajas actuales, ubicaciones activas y % del stock. |
 | **Clientes** | Maestro con código, estado, contacto y observaciones + **envío de stock por correo**. |
 | **Pallets Vacíos** | Registro cronológico con saldo corrido automático y KPI de saldo disponible. |
 
 ### Extensiones WMS incorporadas
 
-- **Aduana / DUA** — saldos, trazabilidad, **días de permanencia** (umbral configurable y alertas en el Panel), **estado documental** editable y **documentación PDF en Google Drive por DUA**.
+- **Aduana / DUA** — saldos, **trazabilidad completa por DUA** (movimientos, posiciones y saldo, imprimible/exportable), **días de permanencia** (umbral configurable y alertas en el Panel), **estado documental** editable y **documentación PDF en Google Drive por DUA**.
 - **Catálogo de Productos / SKUs** — maestro que se completa al vuelo y autocompleta formularios.
 - **Anulación controlada** con ajuste de reversa + motivo; ediciones con motivo de corrección.
 - **Reservas / bloqueos**, **conteo cíclico**, **etiquetas con QR**, **remitos**, **reportes por período** (CSV/PDF/correo).
@@ -132,7 +140,7 @@ El token de acceso vive únicamente en la sesión del navegador (nunca se sube a
 ## Verificación
 
 - KPIs de la app 1:1 con la planilla original: **6.247 cajas · 98 posiciones ocupadas · 9 SKU con saldo · 99 posiciones con movimientos · 107 líneas de Posiciones · saldo de pallets −30**.
-- Suite de pruebas automática incluida: 45 checks de núcleo (generador PDF con tabla xref verificada byte a byte, constructor MIME de Gmail con roundtrip de adjuntos, codificación base64/WinAnsi) + 49 checks de navegador (Playwright: las 12 vistas, modales Drive/correo/configuración, generación de PDF en página validada con poppler, exportación Excel, persistencia, cero errores de consola) + chequeo responsive en 375/768/1360 px.
+- Suite de pruebas automática incluida: 66 checks de núcleo (generador PDF con tabla xref verificada byte a byte, constructor MIME de Gmail con roundtrip de adjuntos, codificación base64/WinAnsi, constructores de comprobante/trazabilidad/listado y filtros de pallets) + 53 checks de navegador (Playwright: las 12 vistas, modales Drive/correo/configuración/trazabilidad/listado, generación de PDF en página validada con poppler, exportación Excel, persistencia, cero errores de consola) + chequeo responsive en 375/768/1360 px.
 
 ## Estructura del repositorio
 
