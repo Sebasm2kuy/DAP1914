@@ -51,7 +51,7 @@ Tocá el botón **Drive** del encabezado (o la tarjeta de sincronización del Pa
 | `WMS_DAP1914/Respaldos/WMS_DAP1914_DB_YYYYMMDD_HHMM.xlsx` | **Copias de respaldo fechadas** en cada «Respaldar ahora» (se conservan las últimas 15). |
 | `WMS_DAP1914/Documentacion_DUAs/` | **PDFs adjuntos por DUA** (DUA escaneado, remitos, documentación aduanera) vinculados a cada DUA o movimiento. |
 
-- **Conexión automática**: al abrir la app se conecta sola con Drive en silencio (sin ventanas ni clics) si ese navegador ya la autorizó antes; la primera vez se conecta con el botón **Drive**.
+- **Conexión automática**: la app guarda la sesión de Drive en el navegador y al abrirla reconecta sola, sin ventanas ni clics. Si el token venció (~1 h), reconecta en silencio con el próximo clic o al abrir el botón **Drive** — Google solo permite su ventana de login a partir de un clic del usuario. La primera vez se conecta con el botón **Drive**; después queda automático.
 - **Guardar en Drive**: sube el maestro `.xlsx` + el estado completo.
 - **Descargar desde Drive**: en otro dispositivo, iniciá sesión con la misma cuenta y con un clic bajás el último estado guardado (con snapshot de seguridad previo). La app te muestra la fecha del archivo en Drive para decidir.
 - **Sincronización automática** (opcional, recomendada): guarda en Drive ~25 s después de cada cambio.
@@ -93,7 +93,7 @@ La app incluye esta misma guía en **Configuración → Sincronización con Goog
 | `gmail.send` | **Solo enviar** correos en tu nombre. No lee tu bandeja. |
 | `userinfo.email` | Saber con qué cuenta iniciaste sesión. |
 
-El token de acceso vive únicamente en la sesión del navegador (nunca se sube a ningún lado ni se guarda en el repo) y la app solo lo usa para las operaciones anteriores.
+El token de acceso se guarda solo en tu navegador (localStorage) para que la app reconecte sola con Drive; nunca se sube a ningún lado, no se guarda en el repo, se borra al desconectar y la app solo lo usa para las operaciones anteriores.
 
 ---
 
@@ -155,7 +155,7 @@ Las contraseñas se guardan como **hash SHA-256** (nunca en texto plano) dentro 
 ## Verificación
 
 - KPIs de la app 1:1 con la planilla original: **6.247 cajas · 98 posiciones ocupadas · 9 SKU con saldo · 99 posiciones con movimientos · 107 líneas de Posiciones · saldo de pallets −30**.
-- Suite de pruebas automática incluida: 104 checks de núcleo (SHA-256 con vectores NIST, permisos y sesión, bootstrap de usuarios, generador PDF con tabla xref verificada byte a byte y **límites de página validados texto por texto**, constructor MIME de Gmail con roundtrip de adjuntos, codificación base64/WinAnsi, constructores de comprobante/trazabilidad/listado/reporte del día y filtros de pallets) + 118 checks de navegador (Playwright: pantalla de acceso con rechazo de clave incorrecta, contraseña sin autocompletado, invitado sin contraseña con botones de escritura ocultos y acciones bloqueadas, sesión por ventana que se cierra al abrir una pestaña nueva, conexión automática de Drive, las 13 vistas, modales Drive/correo/configuración/trazabilidad/listado/reporte del día, flujo completo egreso → reporte del día, panel administrativo con alta/login/permisos/desactivación/baja de usuarios, generación de PDF en página validada con poppler, exportación Excel, persistencia, cero errores de consola) + chequeo responsive en 375/768/1360 px **incluida la pantalla de acceso**.
+- Suite de pruebas automática incluida: 104 checks de núcleo (SHA-256 con vectores NIST, permisos y sesión, bootstrap de usuarios, generador PDF con tabla xref verificada byte a byte y **límites de página validados texto por texto**, constructor MIME de Gmail con roundtrip de adjuntos, codificación base64/WinAnsi, constructores de comprobante/trazabilidad/listado/reporte del día y filtros de pallets) + 123 checks de navegador (Playwright: pantalla de acceso con rechazo de clave incorrecta, contraseña sin autocompletado, invitado sin contraseña con botones de escritura ocultos y acciones bloqueadas, sesión por ventana que se cierra al abrir una pestaña nueva, conexión automática de Drive con token guardado y reconexión verificadas, las 13 vistas, modales Drive/correo/configuración/trazabilidad/listado/reporte del día, flujo completo egreso → reporte del día, panel administrativo con alta/login/permisos/desactivación/baja de usuarios, generación de PDF en página validada con poppler, exportación Excel, persistencia, cero errores de consola) + chequeo responsive en 375/768/1360 px **incluida la pantalla de acceso**.
 
 ## Estructura del repositorio
 

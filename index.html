@@ -7523,11 +7523,15 @@ const G_MIME_PDF = 'application/pdf';
 /* drive.file: solo archivos creados por esta app · gmail.send: solo envío · userinfo.email: identificar la cuenta */
 const G_SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email';
 
-/* ---------- Estado volátil de la sesión (no se persiste el token) ---------- */
+/* ---------- Estado de la sesión ---------- */
 const GState = {
   clientIdUsed: '', client: null, token: '', tokenExp: 0, email: '',
   ids: { folder: null, respaldos: null, docs: null, db: null, json: null },
 };
+
+/* Token persistido en el navegador (localStorage) para reconectar solo al
+   abrir la app: nunca sale de este navegador y se borra al desconectar. */
+const LS_GTOKEN = 'wms-df-gtoken-v1';
 
 function gCfg() {
   DB.config.google = Object.assign({ clientId: '', hint: GOOGLE_HINT_DEFAULT, autoSync: false, lastSyncAt: '', lastTo: '', ids: null }, DB.config.google || {});
@@ -7572,7 +7576,9 @@ function ensureClient() {
 function requestToken(interactive) {
   return new Promise((resolve, reject) => {
     _tokenResolve = resp => { if (resp && resp.error) reject(new Error(resp.error_description || resp.error)); else resolve(resp); };
-    try { GState.client.requestAccessToken(interactive === false ? { prompt: '' } : {}); }
+    /* prompt:'none' = 100% silencioso: Google no muestra ninguna ventana y
+       falla al instante si no puede completar sin preguntar nada */
+    try { GState.client.requestAccessToken(interactive === false ? { prompt: 'none' } : {}); }
     catch (e) { _tokenResolve = null; reject(e); }
   });
 }
@@ -7597,6 +7603,7 @@ async function gAuth(interactive) {
     await gFetchEmail();
     if (!GState.email) GState.email = cfg.hint || GOOGLE_HINT_DEFAULT;
     if (typeof renderDriveButton === 'function') renderDriveButton();
+    gGuardarToken();
     return GState.token;
   } catch (e) {
     GState.token = ''; GState.email = ''; GState.tokenExp = 0;
@@ -7608,10 +7615,33 @@ async function gSilentOrThrow() {
   if (GState.token && GState.tokenExp > Date.now()) return GState.token;
   return gAuth(false); /* renovación silenciosa con la sesión activa de Google */
 }
+
+/* ---------- Token persistido → reconexión automática ---------- */
+function gGuardarToken() {
+  try { localStorage.setItem(LS_GTOKEN, JSON.stringify({ t: GState.token, e: GState.tokenExp, m: GState.email })); } catch (e) { /* noop */ }
+}
+function gBorrarToken() {
+  try { localStorage.removeItem(LS_GTOKEN); } catch (e) { /* noop */ }
+}
+/* Restaura un token guardado todavía vigente, sin llamar a Google */
+function gRestaurarToken() {
+  try {
+    const raw = localStorage.getItem(LS_GTOKEN);
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    if (!s || !s.t || !s.e || s.e < Date.now()) { gBorrarToken(); return false; }
+    GState.token = s.t;
+    GState.tokenExp = s.e;
+    GState.email = s.m || gCfg().hint || GOOGLE_HINT_DEFAULT;
+    if (typeof renderDriveButton === 'function') renderDriveButton();
+    return true;
+  } catch (e) { return false; }
+}
 async function gDisconnect() {
   const tok = GState.token;
   GState.token = ''; GState.email = ''; GState.tokenExp = 0;
   GState.ids = { folder: null, respaldos: null, docs: null, db: null, json: null };
+  gBorrarToken();
   try { if (tok && window.google && google.accounts && google.accounts.oauth2) google.accounts.oauth2.revoke(tok, () => {}); } catch (e) { /* ignorar */ }
   if (typeof renderDriveButton === 'function') renderDriveButton();
   if (typeof renderCurrentViewSafe === 'function') renderCurrentViewSafe();
@@ -7623,7 +7653,7 @@ async function gDisconnect() {
 async function gfetch(url, opts, _retry) {
   await gSilentOrThrow();
   const res = await fetch(url, Object.assign({}, opts || {}, { headers: Object.assign({ Authorization: 'Bearer ' + GState.token }, (opts && opts.headers) || {}) }));
-  if (res.status === 401 && !_retry) { GState.token = ''; await gSilentOrThrow(); return gfetch(url, opts, true); }
+  if (res.status === 401 && !_retry) { GState.token = ''; gBorrarToken(); await gSilentOrThrow(); return gfetch(url, opts, true); }
   if (!res.ok) {
     let msg = 'Error HTTP ' + res.status;
     try { const j = await res.json(); msg = (j.error && j.error.message) || msg; } catch (e) { /* sin cuerpo JSON */ }
@@ -8277,18 +8307,50 @@ function renderDriveButton() {
     : 'Conectar con Google Drive · sincronización y respaldo en la cuenta del depósito (frimaraldap1914@gmail.com)';
 }
 
-/* ---------- Conexión automática (silenciosa) ---------- */
-/* Al iniciar la app intenta conectar con Drive sin ventanas ni clics: si este
-   navegador ya autorizó la app y tiene la sesión de Google activa, queda
-   conectado solo (con sincronización automática andando). Si no puede, no
-   muestra nada: se conecta manualmente con el botón Drive. */
+/* ---------- Conexión automática ---------- */
+/* Capas para que Drive conecte solo:
+   1) Token guardado en este navegador todavía vigente → reconecta al instante,
+      sin llamar a Google (dura ~1 h desde la última conexión).
+   2) Intento silencioso con Google (prompt=none, sin ventanas): funciona si
+      la sesión de Google está activa y la app fue autorizada antes.
+   3) Si no puede, no molesta: reconecta con el próximo clic
+      (bindRenovacionToken) o con el botón Drive la primera vez. */
 async function autoConectarDrive() {
-  if (!gConfigured() || gConnected() || gOriginProblem()) return false;
+  if (gOriginProblem()) return false;
+  if (gConnected()) return true;
+  if (gRestaurarToken()) {
+    toast('Google Drive conectado', 'ok', 'Automático con la sesión guardada · cuenta ' + GState.email);
+    renderCurrentViewSafe();
+    return true;
+  }
+  if (!gConfigured()) return false;
   try { await gAuth(false); } catch (e) { return false; }
   try { await gEnsureTree(); } catch (e) { /* la estructura se crea en la próxima operación */ }
   toast('Google Drive conectado', 'ok', 'Conexión automática al iniciar · cuenta ' + GState.email);
   renderCurrentViewSafe();
   return true;
+}
+
+/* Google solo permite su ventana de login a partir de un clic del usuario:
+   con el próximo clic la app renueva el token por vencer o reintenta la
+   conexión en silencio (prompt=none nunca abre ventanas ni molesta). */
+let _tokenClickBound = false, _tokenClickHasta = 0;
+function bindRenovacionToken() {
+  if (_tokenClickBound) return;
+  _tokenClickBound = true;
+  document.addEventListener('click', () => {
+    if (Date.now() < _tokenClickHasta || !gConfigured() || gOriginProblem()) return;
+    if (typeof puede === 'function' && !puede('drive_leer')) return;
+    const porVencer = !!GState.token && GState.tokenExp - Date.now() < 10 * 60 * 1000;
+    const desconectado = !GState.token;
+    if (!porVencer && !desconectado) return;
+    const yaConectado = gConnected();
+    _tokenClickHasta = Date.now() + 5 * 60 * 1000; /* no martillar a Google si falla */
+    gAuth(false).then(() => {
+      _tokenClickHasta = 0;
+      if (!yaConectado && gConnected()) toast('Google Drive conectado', 'ok', 'Conexión automática · cuenta ' + GState.email);
+    }).catch(() => {});
+  }, true);
 }
 
 /* ---------- Errores de Google con mensaje accionable ---------- */
@@ -8346,6 +8408,12 @@ function openDriveModal() {
       '<label class="checkline" style="margin-top:14px"><input type="checkbox" id="drvAuto"' + (cfg.autoSync ? ' checked' : '') + '> <span><b>Sincronización automática</b> — guardar en Drive ~25 s después de cada cambio del sistema (recomendado en uso monousuario)</span></label>',
     foot: '<button class="btn" id="drvClose">Cerrar</button>' + (gConfigured() ? '' : '<button class="btn primary" id="drvSetup">' + ICONS.gear + ' Ir a Configuración</button>'),
     onOpen() {
+      /* Al abrir el centro hay clic del usuario (Google lo exige para su
+         ventana): se reintenta conectar en silencio y, si sale bien, el modal
+         se actualiza solo — sin tocar «Conectar» */
+      if (!connected && gConfigured() && !gOriginProblem() && typeof autoConectarDrive === 'function') {
+        autoConectarDrive().then(okc => { if (okc) openDriveModal(); });
+      }
       $('#drvClose').onclick = closeModal;
       const setup = $('#drvSetup'); if (setup) setup.onclick = () => { closeModal(); openSettingsModal(); };
       const con = $('#drvConnect'); if (con) con.onclick = async () => {
@@ -8829,6 +8897,8 @@ function iniciarApp() {
   /* Conexión automática con Google Drive: intento silencioso al entrar (sin
      ventanas); si el navegador no tiene sesión de Google activa no hace nada */
   if (typeof autoConectarDrive === 'function' && puede('drive_leer')) autoConectarDrive();
+  /* Con el próximo clic: renueva el token por vencer o reconecta en silencio */
+  if (typeof bindRenovacionToken === 'function') bindRenovacionToken();
   $('#btnExportMenu').onclick = e => { e.stopPropagation(); $('#exportDrop').classList.toggle('open'); };
   document.addEventListener('click', () => $('#exportDrop').classList.remove('open'));
   $('#btnExportXlsx').onclick = exportarXLSX;
