@@ -3328,13 +3328,20 @@ function loadDB() {
   DB.snapshots = Array.isArray(DB.snapshots) ? DB.snapshots : [];
   DB.aduanaEstado = DB.aduanaEstado && typeof DB.aduanaEstado === 'object' ? DB.aduanaEstado : {};
   DB.config = Object.assign({ rol: 'admin', pinHash: null, alertaPermanencia: 45 }, DB.config || {});
+  /* Normalización de "Ref. / documento" (formato tipo oración) en datos
+     existentes: se aplica una vez al cargar y persiste con los datos */
+  if (typeof normalizarRefDoc === 'function') {
+    let refFix = 0;
+    for (const m of DB.movimientos) { const n = normalizarRefDoc(m.refDoc); if (n !== (m.refDoc || '')) { m.refDoc = n; refFix++; } }
+    if (refFix) { try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); } catch (e) { /* noop */ } }
+  }
 }
 function dbIsEmpty() { return DB.movimientos.length === 0 && DB.clientes.length === 0 && DB.pallets.length === 0; }
 
 function loadSeed() {
   const usuariosPrevios = DB && Array.isArray(DB.usuarios) ? DB.usuarios : [];
   DB = emptyDB();
-  DB.movimientos = WMS_SEED.movimientos.map(m => ({ id: uid(), ...m }));
+  DB.movimientos = WMS_SEED.movimientos.map(m => ({ id: uid(), ...m, refDoc: normalizarRefDoc(m.refDoc) }));
   DB.clientes = WMS_SEED.clientes.map(c => ({ id: uid(), ...c }));
   DB.productos = (WMS_SEED.productos || []).map(p => ({ id: uid(), ...p }));
   DB.pallets = WMS_SEED.pallets.map(p => ({ id: uid(), ...p }));
@@ -3510,12 +3517,12 @@ function lineasInventario() {
     if (!l) {
       l = { key, nroStock: String(m.nroStock ?? ''), cliente: m.cliente || '', producto: m.producto || '',
             medida: (m.medida == null || m.medida === '') ? '0' : String(m.medida), medidaNorm: normKey(m.medida || '0'),
-            coordenada: coord, stock: 0, primerFecha: m.fecha, ultimaFecha: m.fecha, ultimoRef: m.refDoc || '' };
+            coordenada: coord, stock: 0, primerFecha: m.fecha, ultimaFecha: m.fecha, ultimoRef: normalizarRefDoc(m.refDoc || '') };
       map.set(key, l);
     }
     l.stock += impactoDe(m);
     if (m.fecha && (m.fecha > l.ultimaFecha || (m.fecha === l.ultimaFecha && (m.n || 0) >= (l.ultimaN || 0)))) {
-      l.ultimaFecha = m.fecha; l.ultimoRef = m.refDoc || l.ultimoRef; l.ultimaN = m.n || 0;
+      l.ultimaFecha = m.fecha; l.ultimoRef = normalizarRefDoc(m.refDoc) || l.ultimoRef; l.ultimaN = m.n || 0;
     }
     if (m.fecha && m.fecha < l.primerFecha) l.primerFecha = m.fecha;
   }
@@ -3525,6 +3532,110 @@ function estadoLinea(stock) {
   if (stock < 0) return 'REVISAR SALDO';
   if (stock === 0) return 'SIN STOCK';
   return 'OK';
+}
+
+/* ---------- Normalización de "Ref. / documento" ---------- */
+/* Formato tipo oración consistente: "INGRESO" y "Descarga inicial" → "Ingreso",
+   "SALIDA" → "Salida". Respeta siglas conocidas (DUA, SKU, OK…), números y
+   códigos de posición (A010). Se aplica al mostrar, importar, cargar, guardar
+   y exportar (Excel / Drive / Gmail), sin tocar los demás datos. */
+const REFDOC_SIGLAS = new Set(['DUA', 'SKU', 'OK', 'PDF', 'WMS', 'DAP', 'PDI', 'OC', 'IT']);
+const REFDOC_CANON = {
+  'ingreso': 'Ingreso',
+  'egreso': 'Egreso',
+  'salida': 'Salida',
+  'descarga': 'Descarga',
+  'carga': 'Carga',
+  'descarga inicial': 'Ingreso',
+  'ingreso inicial': 'Ingreso',
+  'conteo ciclico': 'Conteo cíclico',
+  'conteo cíclico': 'Conteo cíclico',
+  'anulacion': 'Anulación',
+};
+function normalizarRefDoc(v) {
+  let s = String(v == null ? '' : v).trim().replace(/\s+/g, ' ');
+  if (!s) return '';
+  const clave = s.toLowerCase().replace(/[.:;,\s]+$/, '');
+  if (REFDOC_CANON[clave]) return REFDOC_CANON[clave];
+  const tok = w => {
+    if (/^[\d.,\/\-×x°%+]+$/.test(w)) return w;                /* números y medidas: 24/11, 30×5 */
+    const core = w.replace(/[^A-Za-zÑñ0-9]/g, '');
+    if (!core) return w;
+    if (/\d/.test(core) && /[A-Za-zÑñ]/.test(core)) return w;  /* códigos: A010, DUA819365 */
+    if (core.length <= 4 && core === core.toUpperCase() && REFDOC_SIGLAS.has(core)) return core;
+    return w.toLowerCase();
+  };
+  s = s.split(' ').map(tok).join(' ');
+  return s.replace(/^([a-záéíóúüñ])/i, c => c.toUpperCase());
+}
+
+/* ---------- Saldo vigente por partida ---------- */
+/* Cruza cada movimiento con el stock actual del depósito: para cada Ingreso
+   calcula cuántas cajas conserva hoy su partida. La clave es la misma del
+   inventario (N.º stock + cliente + producto + medida + coordenada), por lo
+   que los palets compartidos se resuelven correctamente. Los egresos y
+   ajustes negativos de la clave consumen los ingresos en orden cronológico
+   (FIFO), igual que el stock físico. */
+function saldosPorPartida() {
+  const claves = new Map();
+  for (const m of DB.movimientos) {
+    const coord = normCoord(m.coordenada);
+    if (!coord) continue;
+    const key = [String(m.nroStock ?? ''), m.cliente || '', m.producto || '', normKey(m.medida), coord].join('§');
+    let c = claves.get(key);
+    if (!c) { c = { ins: [], outs: [] }; claves.set(key, c); }
+    const imp = impactoDe(m);
+    if (imp > 0) c.ins.push(m); else if (imp < 0) c.outs.push(m);
+  }
+  const saldoLinea = new Map(lineasInventarioCache().map(l => [l.key, l.stock]));
+  const res = new Map(); /* movimiento → { inicial, retirado, vigente, saldoLinea } */
+  for (const [key, c] of claves) {
+    const ord = arr => arr.slice().sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || ((a.n || 0) - (b.n || 0)));
+    const ins = ord(c.ins), outs = ord(c.outs);
+    const rest = ins.map(() => 0);
+    for (const o of outs) {
+      let r = Math.abs(impactoDe(o));
+      /* 1º: consumir ingresos anteriores o de la misma fecha (FIFO temporal) */
+      for (let j = 0; j < ins.length && r > 0; j++) {
+        if ((ins[j].fecha || '') > (o.fecha || '') || ((ins[j].fecha || '') === (o.fecha || '') && ((ins[j].n || 0) > (o.n || 0)))) continue;
+        const t = Math.min(impactoDe(ins[j]) - rest[j], r);
+        if (t > 0) { rest[j] += t; r -= t; }
+      }
+      /* 2º: sobrante atípico (egreso previo a todo ingreso de la clave) */
+      for (let j = 0; j < ins.length && r > 0; j++) {
+        const t = Math.min(impactoDe(ins[j]) - rest[j], r);
+        if (t > 0) { rest[j] += t; r -= t; }
+      }
+    }
+    ins.forEach((m, j) => res.set(m, { inicial: impactoDe(m), retirado: rest[j], vigente: impactoDe(m) - rest[j], saldoLinea: saldoLinea.get(key) || 0 }));
+  }
+  return res;
+}
+/* Estado actual de una partida: 'vigente' (saldo completo), 'parcial' (conserva
+   parte tras egresos parciales), 'agotado' (saldo llegó a 0). Para egresos,
+   traslados-salida y ajustes negativos devuelve null: su celda muestra el
+   impacto, nunca disponibilidad. */
+function estadoPartidaDe(m, saldos) {
+  if (impactoDe(m) <= 0) return null;
+  const info = saldos.get(m);
+  if (!info) return { estado: 'vigente', inicial: impactoDe(m), retirado: 0, vigente: impactoDe(m), saldoLinea: null }; /* sin coordenada: no se puede cruzar */
+  if (info.vigente <= 0) return Object.assign({ estado: 'agotado' }, info);
+  if (info.retirado > 0) return Object.assign({ estado: 'parcial' }, info);
+  return Object.assign({ estado: 'vigente' }, info);
+}
+/* Celda "Vigencia / saldo" de Movimientos: badge de estado (gris = agotada,
+   ámbar = parcial, verde = vigente) + saldo restante, con tooltip explicativo.
+   El color del TIPO (verde ingreso / rojo egreso) queda intacto en su badge. */
+function celdaVigencia(m, saldos) {
+  const est = estadoPartidaDe(m, saldos);
+  if (est === null) {
+    const imp = Math.abs(impactoDe(m));
+    const esTraslado = /traslado/i.test(String(m.refDoc || ''));
+    return '<span class="badge neutral" title="Movimiento de salida' + (esTraslado ? ' (pierna de traslado)' : '') + ': retira ' + fmtInt(imp) + ' cajas de la posición ' + esc(m.coordenada || '—') + '. Es el impacto histórico del registro, no disponibilidad actual; el saldo vigente por posición se ve en Stock Actual.">Impacto: −' + fmtInt(imp) + ' cajas</span>';
+  }
+  if (est.estado === 'agotado') return '<span class="badge neutral" title="Partida agotada: los egresos de esta clave (N.º stock · producto · posición' + (m.dua ? ' · DUA ' + esc(m.dua) : '') + ') consumieron todas sus cajas. Queda como registro histórico y trazabilidad aduanera, no como stock disponible.">Agotada · Saldo: 0 cajas</span>';
+  if (est.estado === 'parcial') return '<span class="badge warn" title="Saldo parcial: la partida ingresó con ' + fmtInt(est.inicial) + ' cajas y conserva ' + fmtInt(est.vigente) + ' después de egresos parciales sobre esta misma clave.">Parcial · Saldo: ' + fmtInt(est.vigente) + ' / ' + fmtInt(est.inicial) + ' cajas</span>';
+  return '<span class="badge ok" title="Vigente: la partida conserva sus ' + fmtInt(est.vigente) + ' cajas; no hay egresos registrados contra esta clave.">Vigente · Saldo: ' + fmtInt(est.vigente) + ' cajas</span>';
 }
 /* Ítems activos (saldo > 0) de una coordenada */
 function itemsActivos(coord) {
@@ -3620,7 +3731,7 @@ function dataListValues() {
     duals: uniq(DB.movimientos.map(m => m.dua)),
     productos: uniq(DB.productos.map(p => p.producto).concat(DB.movimientos.map(m => m.producto))),
     medidas: uniq(DB.movimientos.map(m => m.medida).concat(DB.productos.map(p => p.medida)).filter(m2 => m2 !== '0' && m2 !== '')),
-    refs: uniq(DB.movimientos.map(m => m.refDoc)),
+    refs: uniq(DB.movimientos.map(m => normalizarRefDoc(m.refDoc))),
   };
 }
 function datalistHTML(id, values) {
@@ -4572,6 +4683,7 @@ RENDERERS.stock = function (patch) {
   const k = kpis();
   el.innerHTML =
     viewHead('Stock actual · foto real por posición', 'El stock de cada posición se calcula sumando el <b>Impacto stock</b> de todos los movimientos en esa coordenada. Estados: LIBRE (0), OCUPADO (&gt;0) y REVISAR SALDO (&lt;0).',
+      '<button class="btn" id="stkPrint">' + ICONS.print + ' Imprimir ocupados</button>' +
       (puede('mov') ? '<button class="btn" id="stkConteo">' + ICONS.count + ' Conteo cíclico</button>' : '')) +
     '<div class="kpi-grid">' +
       '<div class="kpi"><div class="kpi-label">Posiciones ocupadas</div><div class="kpi-value">' + fmtInt(k.ocupadas) + '</div><div class="kpi-sub">En racks A y B (excluye Piso)</div></div>' +
@@ -4592,6 +4704,7 @@ RENDERERS.stock = function (patch) {
   $('#stkRack').value = STK_F.rack;
   const btnConteo = $('#stkConteo');
   if (btnConteo) btnConteo.onclick = () => openConteoCiclicoModal();
+  $('#stkPrint').onclick = () => imprimirStockOcupados();
   $('#stkQ').oninput = debounce(e => { STK_F.q = e.target.value; updateStockTbl(); }, 140);
   $('#stkEstado').onchange = e => { STK_F.estado = e.target.value; updateStockTbl(); };
   $('#stkRack').onchange = e => { STK_F.rack = e.target.value; updateStockTbl(); };
@@ -4639,7 +4752,7 @@ RENDERERS.stock = function (patch) {
       let detalle;
       if (r.stock <= 0) detalle = '<span class="muted">Disponible</span>';
       else if (r.compartido) detalle = '<span class="badge shared">PALET COMPARTIDO (' + r.items.length + ' ítems)</span> <span class="muted">' + ICONS.chev + '</span>';
-      else detalle = esc((r.ultIng && r.ultIng.refDoc) || '—');
+      else detalle = esc(normalizarRefDoc((r.ultIng && r.ultIng.refDoc) || '') || '—');
       html += '<tr class="' + (r.stock < 0 ? 'neg ' : '') + (r.compartido ? 'expandable' : '') + '" data-coord="' + esc(r.coord) + '">' +
         '<td class="coord">' + esc(r.coord) + '</td>' +
         '<td class="num strong">' + fmtInt(r.stock) + '</td>' +
@@ -4677,10 +4790,66 @@ RENDERERS.stock = function (patch) {
 };
 function lineaByKey(key) { return lineasInventarioCache().find(l => l.key === key); }
 
+/* ---------- Impresión: posiciones ocupadas de Stock Actual ---------- */
+/* Imprime ÚNICAMENTE las posiciones ocupadas (excluye libres), respetando los
+   filtros activos de búsqueda y rack/piso. Disponible para administrador e
+   invitado de consulta (permiso imprimir); usa el área de impresión global
+   (#printArea + @media print) que oculta sidebar, botones y navegación. */
+function imprimirStockOcupados() {
+  if (dbIsEmpty()) { toast('No hay datos para imprimir', 'warn'); return; }
+  const st = stockPorCoord();
+  const q = STK_F.q.trim().toLowerCase();
+  const rows = [];
+  for (const coord of COORDS) {
+    const stock = st.get(coord) || 0;
+    if (estadoPosicion(stock) !== 'OCUPADO') continue; /* solo ocupadas: excluye libres y negativas */
+    const items = itemsActivos(coord);
+    let ultIng = null;
+    for (const m of DB.movimientos) if (m.tipo === 'Ingreso' && normCoord(m.coordenada) === coord) { if (!ultIng || (m.fecha || '') >= (ultIng.fecha || '')) ultIng = m; }
+    if (STK_F.rack !== 'todos') {
+      if (STK_F.rack === 'Piso' && coord !== 'Piso') continue;
+      if (STK_F.rack !== 'Piso' && (coord === 'Piso' || coord[0] !== STK_F.rack)) continue;
+    }
+    if (q) {
+      const hay = [coord, ...items.flatMap(i => [i.nroStock, i.cliente, i.producto, i.medida]), ultIng ? ultIng.refDoc : ''].join(' ').toLowerCase();
+      if (!hay.includes(q)) continue;
+    }
+    rows.push({ coord, stock, items, ultIng });
+  }
+  rows.sort((a, b) => a.coord === b.coord ? 0 : a.coord === 'Piso' ? 1 : b.coord === 'Piso' ? -1 : coordSort(a.coord, b.coord));
+  if (!rows.length) { toast('No hay posiciones ocupadas con los filtros aplicados', 'warn'); return; }
+  const totalCajas = rows.reduce((a, r) => a + r.stock, 0);
+  const compartidas = rows.filter(r => r.items.length > 1).length;
+  const filtros = ['solo posiciones ocupadas'];
+  if (STK_F.rack !== 'todos') filtros.push('rack ' + STK_F.rack);
+  if (q) filtros.push('búsqueda «' + STK_F.q.trim() + '»');
+  const td = (v, cls) => '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + esc(v == null || v === '' ? '—' : v) + '</td>';
+  const filas = rows.map(r =>
+    '<tr>' + td(r.coord, 'mono') + '<td class="num"><b>' + fmtInt(r.stock) + '</b></td>' +
+    td(Array.from(new Set(r.items.map(i => i.nroStock))).join(' · ') || (r.ultIng ? String(r.ultIng.nroStock) : ''), 'mono') +
+    td(Array.from(new Set(r.items.map(i => i.cliente))).join(' · ')) +
+    td(Array.from(new Set(r.items.map(i => i.producto))).join(' · ')) +
+    td(Array.from(new Set(r.items.map(i => i.medida))).join(' · ')) +
+    td(r.items.length > 1 ? 'PALET COMPARTIDO (' + r.items.length + ' ítems)' : ((r.ultIng && normalizarRefDoc(r.ultIng.refDoc)) || '')) +
+    '</tr>').join('');
+  imprimirHTML('Stock actual · Posiciones ocupadas',
+    '<div class="remito">' +
+      '<div class="remito-titulo">STOCK ACTUAL · POSICIONES OCUPADAS</div>' +
+      '<div class="remito-meta"><b>Emitido el ' + esc(stampNow()) + '</b> · Depósito Fiscal DAP1914 · Filtros: ' + esc(filtros.join(' · ')) + '</div>' +
+      '<table class="print-tbl remito-datos"><tr>' +
+        '<th>Posiciones ocupadas</th><th>Total de cajas</th><th>Palets compartidos</th></tr>' +
+        '<tr><td class="num"><b>' + fmtInt(rows.length) + '</b></td><td class="num"><b>' + fmtInt(totalCajas) + '</b></td><td class="num">' + fmtInt(compartidas) + '</td></tr></table>' +
+      '<div class="remito-sub">DETALLE POR POSICIÓN (' + rows.length + ')</div>' +
+      '<table class="print-tbl"><tr>' +
+        '<th>Coordenada</th><th>Stock actual (cajas)</th><th>N.º stock vigente</th><th>Cliente</th><th>Producto</th><th>Medida / Peso</th><th>Observaciones / Detalle</th>' +
+      '</tr>' + filas + '</table>' +
+    '</div>');
+}
+
 /* ============================================================
    MOVIMIENTOS
    ============================================================ */
-const MOV_F = { q: '', tipo: 'todos', cliente: 'todos', desde: '', hasta: '', desc: true };
+const MOV_F = { q: '', tipo: 'todos', cliente: 'todos', saldo: 'todos', desde: '', hasta: '', desc: true };
 
 RENDERERS.movs = function (patch) {
   Object.assign(MOV_F, patch);
@@ -4688,7 +4857,7 @@ RENDERERS.movs = function (patch) {
   if (dbIsEmpty()) { el.innerHTML = viewHead('Registro de movimientos', 'Fuente única de verdad del sistema: todo el stock se deriva de esta bitácora') + emptyState('Sin movimientos cargados', true) + bindEmptyCTA(); return; }
   const dl = dataListValues();
   el.innerHTML =
-    viewHead('Registro de movimientos', 'Fuente única de verdad: cada ingreso, egreso o ajuste impacta el stock de su coordenada. Los traslados generan automáticamente el egreso de origen y el ingreso en destino.',
+    viewHead('Registro de movimientos', 'Fuente única de verdad: cada ingreso, egreso o ajuste impacta el stock de su coordenada. Los traslados generan automáticamente el egreso de origen y el ingreso en destino. La columna <b>Vigencia / saldo</b> cruza cada partida con el stock actual del depósito (verde = vigente, ámbar = saldo parcial, gris = agotada) sin confundir el color del tipo con la disponibilidad real.',
       '<button class="btn primary" id="mvNuevo">' + ICONS.plus + ' Nuevo movimiento</button>' +
       '<button class="btn" id="mvTraslado">' + ICONS.swap + ' Traslado entre posiciones</button>' +
       '<button class="btn" id="mvRapida">' + ICONS.ship + ' Carga rápida por contenedor</button>' +
@@ -4697,6 +4866,7 @@ RENDERERS.movs = function (patch) {
       '<div class="search-box">' + ICONS.search + '<input id="mvQ" placeholder="Buscar N.º stock, DUA, contenedor, coordenada, producto…" value="' + esc(MOV_F.q) + '"></div>' +
       '<select id="mvTipo"><option value="todos">Todos los tipos</option>' + TIPOS.map(t => '<option>' + t + '</option>').join('') + '</select>' +
       '<select id="mvCli"><option value="todos">Todos los clientes</option>' + dl.clientes.map(c => '<option>' + esc(c) + '</option>').join('') + '</select>' +
+      '<select id="mvSaldo" title="Estado de saldo / vigencia de la partida"><option value="todos">Todos los saldos</option><option value="vigente">Con saldo / Vigentes</option><option value="parcial">Saldo parcial</option><option value="agotado">Agotados / Sin saldo</option></select>' +
       '<input type="date" id="mvDesde" title="Fecha desde" value="' + esc(MOV_F.desde) + '">' +
       '<input type="date" id="mvHasta" title="Fecha hasta" value="' + esc(MOV_F.hasta) + '">' +
       '<button class="btn sm ghost" id="mvOrden" title="Invertir orden cronológico">' + ICONS.hist + ' ' + (MOV_F.desc ? 'Recientes primero' : 'Antiguos primero') + '</button>' +
@@ -4705,9 +4875,11 @@ RENDERERS.movs = function (patch) {
     '<div id="movsTbl"></div>';
   $('#mvTipo').value = MOV_F.tipo;
   $('#mvCli').value = MOV_F.cliente;
+  $('#mvSaldo').value = MOV_F.saldo;
   $('#mvQ').oninput = debounce(e => { MOV_F.q = e.target.value; updateMovsTbl(); }, 140);
   $('#mvTipo').onchange = e => { MOV_F.tipo = e.target.value; updateMovsTbl(); };
   $('#mvCli').onchange = e => { MOV_F.cliente = e.target.value; updateMovsTbl(); };
+  $('#mvSaldo').onchange = e => { MOV_F.saldo = e.target.value; updateMovsTbl(); };
   $('#mvDesde').onchange = e => { MOV_F.desde = e.target.value; updateMovsTbl(); };
   $('#mvHasta').onchange = e => { MOV_F.hasta = e.target.value; updateMovsTbl(); };
   $('#mvOrden').onclick = () => { MOV_F.desc = !MOV_F.desc; RENDERERS.movs(); };
@@ -4720,9 +4892,11 @@ RENDERERS.movs = function (patch) {
   function updateMovsTbl() {
     const q = MOV_F.q.trim().toLowerCase();
     const qn = normKey(q);
+    const saldos = saldosPorPartida();
     let list = DB.movimientos.filter(m => {
       if (MOV_F.tipo !== 'todos' && m.tipo !== MOV_F.tipo) return false;
       if (MOV_F.cliente !== 'todos' && (m.cliente || '') !== MOV_F.cliente) return false;
+      if (MOV_F.saldo !== 'todos') { const est = estadoPartidaDe(m, saldos); if (!est || est.estado !== MOV_F.saldo) return false; }
       if (MOV_F.desde && (m.fecha || '') < MOV_F.desde) return false;
       if (MOV_F.hasta && (m.fecha || '') > MOV_F.hasta) return false;
       if (q) {
@@ -4735,7 +4909,7 @@ RENDERERS.movs = function (patch) {
     if (MOV_F.desc) list.reverse();
     $('#mvCount').textContent = fmtInt(list.length) + ' de ' + fmtInt(DB.movimientos.length) + ' movimientos';
     let html = '<div class="tbl-wrap" style="max-height:70vh"><table class="tbl"><thead><tr>' +
-      '<th>Fecha</th><th>Tipo movimiento</th><th>N.º stock</th><th>Cliente</th><th>Contenedor</th><th>DUA</th><th>Producto</th><th>Medida</th><th>Coordenada</th><th class="num">Cantidad (cajas)</th><th>Ref. / documento</th><th>Observaciones</th><th class="num">Impacto stock</th><th></th>' +
+      '<th>Fecha</th><th>Tipo movimiento</th><th>N.º stock</th><th>Cliente</th><th>Contenedor</th><th>DUA</th><th>Producto</th><th>Medida</th><th>Coordenada</th><th class="num">Cantidad (cajas)</th><th>Ref. / documento</th><th>Observaciones</th><th class="num">Impacto stock</th><th>Vigencia / saldo</th><th></th>' +
       '</tr></thead><tbody>';
     for (const m of list) {
       const anulado = !!m.anulado;
@@ -4750,9 +4924,10 @@ RENDERERS.movs = function (patch) {
         '<td>' + esc(m.medida || '—') + '</td>' +
         '<td class="coord">' + esc(m.coordenada) + '</td>' +
         '<td class="num">' + fmtInt(m.cantidad) + '</td>' +
-        '<td>' + esc(m.refDoc || '—') + '</td>' +
+        '<td>' + esc(normalizarRefDoc(m.refDoc) || '—') + '</td>' +
         '<td class="muted">' + esc(m.obs || '') + '</td>' +
         impactCell(impactoDe(m)) +
+        '<td>' + celdaVigencia(m, saldos) + '</td>' +
         '<td><div class="row-actions">' +
           '<button class="icon-btn" data-remito="' + esc(m.id) + '" title="Imprimir remito">' + ICONS.print + '</button>' +
           '<button class="icon-btn" data-mail="' + esc(m.id) + '" title="Enviar comprobante por correo (Gmail)">' + ICONS.mail + '</button>' +
@@ -4761,7 +4936,7 @@ RENDERERS.movs = function (patch) {
           (puede('mov') ? '<button class="icon-btn danger" data-del="' + esc(m.id) + '" title="Eliminar">' + ICONS.trash + '</button>' : '') +
         '</div></td></tr>';
     }
-    if (!list.length) html += '<tr><td colspan="14" style="text-align:center;padding:26px;color:var(--text-3)">Sin resultados con los filtros aplicados.</td></tr>';
+    if (!list.length) html += '<tr><td colspan="15" style="text-align:center;padding:26px;color:var(--text-3)">Sin resultados con los filtros aplicados.</td></tr>';
     html += '</tbody></table></div>';
     $('#movsTbl').innerHTML = html;
     $$('#movsTbl [data-remito]').forEach(b => b.onclick = () => imprimirRemito(DB.movimientos.find(x => x.id === b.dataset.remito)));
@@ -5504,7 +5679,7 @@ function clearInvalid() { $$('.field.invalid').forEach(f => f.classList.remove('
 function formDataLists(dl) {
   return datalistHTML('dl-clientes', dl.clientes) + datalistHTML('dl-stocks', dl.stocks) +
     datalistHTML('dl-cont', dl.contenedores) + datalistHTML('dl-dua', dl.duals) +
-    datalistHTML('dl-prod', dl.productos) + datalistHTML('dl-med', dl.medidas) + datalistHTML('dl-ref', ['Descarga inicial', 'INGRESO', 'Salida'].concat(dl.refs));
+    datalistHTML('dl-prod', dl.productos) + datalistHTML('dl-med', dl.medidas) + datalistHTML('dl-ref', ['Ingreso', 'Salida'].concat(dl.refs));
 }
 
 /* ============================================================
@@ -5540,7 +5715,7 @@ function openMovModal(mov, linea, tipoFijo) {
         fieldHTML('mv-med', 'Medida', inp('mv-med', m.medida, 'list="dl-med" placeholder="ej. 40×20, 6x2840grs"')) +
         fieldHTML('mv-coord', 'Coordenada', '<select id="mv-coord">' + coordOptions(m.coordenada, { placeholder: 'Seleccionar…' }) + '</select>', 'Rack A/B (A000–B990, de 10 en 10) o Piso') +
         fieldHTML('mv-cant', 'Cantidad (cajas)', inp('mv-cant', m.cantidad, 'type="number" min="0.01" step="any" placeholder="Siempre positivo"')) +
-        fieldHTML('mv-ref', 'Ref. / documento', inp('mv-ref', m.refDoc, 'list="dl-ref" placeholder="ej. Descarga inicial, INGRESO, Salida"')) +
+        fieldHTML('mv-ref', 'Ref. / documento', inp('mv-ref', m.refDoc, 'list="dl-ref" placeholder="ej. Ingreso, Salida, Remito 123"')) +
         fieldHTML('mv-obs', 'Observaciones', inp('mv-obs', m.obs, 'placeholder="ej. 1 pallet, 22 pallets"')) +
       '</div>' +
       '<div class="form-section">Impacto stock</div>' +
@@ -5601,7 +5776,7 @@ function openMovModal(mov, linea, tipoFijo) {
           fecha: get('mv-fecha'), tipo: get('mv-tipo'), nroStock: get('mv-stock') || '0',
           cliente: get('mv-cliente'), contenedor: get('mv-cont') || '0', dua: get('mv-dua'),
           producto: get('mv-prod'), medida: get('mv-med') || '0', coordenada: get('mv-coord'),
-          cantidad: Math.abs(Number(get('mv-cant')) || 0), refDoc: get('mv-ref'), obs: get('mv-obs'),
+          cantidad: Math.abs(Number(get('mv-cant')) || 0), refDoc: normalizarRefDoc(get('mv-ref')), obs: get('mv-obs'),
           impacto: $('#mv-manual').checked ? (Number(get('mv-imp')) || 0) * ($('#mv-tipo').value === 'Egreso' || $('#mv-tipo').value === 'Ajuste -' ? -1 : 1) : null,
         };
         let ok = true;
@@ -5752,8 +5927,8 @@ function openTrasladoModal(linea) {
         if (l && l.coordenada === origen && cant > l.stock) {
           toast('Atención: la cantidad supera el saldo del ítem', 'warn', 'Saldo del ítem en ' + origen + ': ' + fmtInt(l.stock) + ' cajas. El traslado se registró igualmente.');
         }
-        const eg = { id: uid(), n: nextN(), ...base, tipo: 'Egreso', coordenada: origen, refDoc: 'Traslado a ' + destino, obs: (base.obs ? base.obs + ' · ' : '') + 'Traslado a ' + destino, impacto: -cant };
-        const ingr = { id: uid(), n: nextN(), ...base, tipo: 'Ingreso', coordenada: destino, refDoc: 'Traslado desde ' + origen, obs: (base.obs ? base.obs + ' · ' : '') + 'Traslado desde ' + origen, impacto: cant };
+        const eg = { id: uid(), n: nextN(), ...base, tipo: 'Egreso', coordenada: origen, refDoc: normalizarRefDoc('Traslado a ' + destino), obs: (base.obs ? base.obs + ' · ' : '') + 'Traslado a ' + destino, impacto: -cant };
+        const ingr = { id: uid(), n: nextN(), ...base, tipo: 'Ingreso', coordenada: destino, refDoc: normalizarRefDoc('Traslado desde ' + origen), obs: (base.obs ? base.obs + ' · ' : '') + 'Traslado desde ' + origen, impacto: cant };
         DB.movimientos.push(eg);
         DB.movimientos.push(ingr);
         ensureInCatalog(base.producto, base.medida, base.cliente);
@@ -5790,7 +5965,7 @@ function openCargaRapidaModal() {
         fieldHTML('cr-dua', 'DUA', inp('cr-dua', '', 'list="dl-dua" placeholder="ej. 828734"')) +
         fieldHTML('cr-prod', 'Producto', inp('cr-prod', '', 'list="dl-prod" placeholder="ej. Palmitos en rodajas Hidalgo"')) +
         fieldHTML('cr-med', 'Medida', inp('cr-med', '', 'list="dl-med" placeholder="ej. 12x800grs"')) +
-        fieldHTML('cr-ref', 'Ref. / documento', inp('cr-ref', 'INGRESO', 'list="dl-ref"')) +
+        fieldHTML('cr-ref', 'Ref. / documento', inp('cr-ref', 'Ingreso', 'list="dl-ref"')) +
       '</div>' +
       '<div class="form-section">Posiciones del ingreso</div>' +
       '<div class="range-tool">' +
@@ -5848,7 +6023,7 @@ function openCargaRapidaModal() {
         const base = {
           fecha: get('cr-fecha'), tipo: 'Ingreso', nroStock: get('cr-stock') || '0', cliente: get('cr-cliente'),
           contenedor: get('cr-cont') || '0', dua: get('cr-dua'), producto: get('cr-prod'),
-          medida: get('cr-med') || '0', refDoc: get('cr-ref') || 'INGRESO', obs: '',
+          medida: get('cr-med') || '0', refDoc: normalizarRefDoc(get('cr-ref') || 'Ingreso'), obs: '',
         };
         let ok = true;
         if (!base.fecha) { markInvalid('cr-fecha', 'Ingresá la fecha.'); ok = false; }
@@ -6006,7 +6181,7 @@ function openPosicionModal(coord) {
       '<div class="form-section">Últimos movimientos</div>' +
       (movs.length ?
         '<div class="tbl-wrap" style="box-shadow:none;max-height:240px"><table class="tbl"><thead><tr><th>Fecha</th><th>Tipo</th><th>Producto</th><th class="num">Cant.</th><th class="num">Impacto</th><th>Ref.</th><th>Obs.</th></tr></thead><tbody>' +
-        movs.map(m => '<tr><td class="mono">' + fmtDate(m.fecha) + '</td><td>' + badgeTipo(m.tipo) + '</td><td>' + esc(m.producto || '—') + '</td><td class="num">' + fmtInt(m.cantidad) + '</td>' + impactCell(impactoDe(m)) + '<td>' + esc(m.refDoc || '—') + '</td><td class="muted">' + esc(m.obs || '') + '</td></tr>').join('') +
+        movs.map(m => '<tr><td class="mono">' + fmtDate(m.fecha) + '</td><td>' + badgeTipo(m.tipo) + '</td><td>' + esc(m.producto || '—') + '</td><td class="num">' + fmtInt(m.cantidad) + '</td>' + impactCell(impactoDe(m)) + '<td>' + esc(normalizarRefDoc(m.refDoc) || '—') + '</td><td class="muted">' + esc(m.obs || '') + '</td></tr>').join('') +
         '</tbody></table></div>'
         : '<div class="muted" style="font-size:13px">Sin movimientos registrados para esta posición.</div>'),
     foot:
@@ -6543,7 +6718,7 @@ function parseWorkbook(data) {
           producto: String(pick(row, ['producto', 'product']) ?? '').trim(),
           medida: String(pick(row, ['medida', 'medidapeso', 'medida/peso']) ?? '0').trim() || '0',
           coordenada: coord, cantidad,
-          refDoc: String(pick(row, ['refdocumento', 'ref', 'ref/doc', 'refdocumento', 'referencia']) ?? '').trim(),
+          refDoc: normalizarRefDoc(String(pick(row, ['refdocumento', 'ref', 'ref/doc', 'refdocumento', 'referencia']) ?? '')),
           obs: String(pick(row, ['observaciones', 'obs', 'observacion']) ?? '').trim(),
           impacto: impacto != null ? impacto : impactoCalculado(tipo, cantidad),
         });
@@ -6802,7 +6977,7 @@ function buildWorkbook() {
     const items = itemsActivos(coord);
     let ultIng = null;
     for (const m of DB.movimientos) if (m.tipo === 'Ingreso' && normCoord(m.coordenada) === coord) { if (!ultIng || (m.fecha || '') >= (ultIng.fecha || '')) ultIng = m; }
-    const detalle = stock <= 0 ? 'Disponible' : items.length > 1 ? 'PALET COMPARTIDO (' + items.length + ' ítems)' : ((ultIng && ultIng.refDoc) || '');
+      const detalle = stock <= 0 ? 'Disponible' : items.length > 1 ? 'PALET COMPARTIDO (' + items.length + ' ítems)' : ((ultIng && normalizarRefDoc(ultIng.refDoc)) || '');
     sAoa.push([
       coord, stock, estadoPosicion(stock),
       stock > 0 ? (items.length ? Array.from(new Set(items.map(i => i.nroStock))).join(' · ') : (ultIng ? String(ultIng.nroStock) : '')) : '',
@@ -6824,7 +6999,7 @@ function buildWorkbook() {
   ];
   movs.forEach(m => mAoa.push([
     dateCell(m.fecha), m.tipo, numOrStr(m.nroStock), m.cliente, numOrStr(m.contenedor), numOrStr(m.dua),
-    m.producto, numOrStr(m.medida), m.coordenada, m.cantidad, m.refDoc, m.obs, impactoDe(m),
+      m.producto, numOrStr(m.medida), m.coordenada, m.cantidad, normalizarRefDoc(m.refDoc), m.obs, impactoDe(m),
   ]));
   const wsMovs = makeSheet(mAoa, [95, 120, 90, 110, 140, 90, 220, 110, 95, 115, 130, 160, 105]);
   // formato de fecha dd/mm/yyyy en la columna A (serial + formato, como el archivo original)
@@ -7002,7 +7177,7 @@ function comprobanteBodyHTML(movs, titulo) {
           '<tr><td class="mono"><b>' + esc(m.coordenada) + '</b></td><td>' + esc(sectorDeCoord(m.coordenada)) + '</td>' +
           '<td class="mono">' + esc(m.nroStock || '0') + '</td><td>' + esc(m.producto || '—') + '</td>' +
           '<td>' + esc(m.medida || '—') + '</td><td class="num">' + fmtInt(m.cantidad) + '</td>' +
-          '<td>' + esc(m.refDoc || '—') + '</td></tr>').join('') +
+          '<td>' + esc(normalizarRefDoc(m.refDoc) || '—') + '</td></tr>').join('') +
         '<tr><td colspan="5"><b>TOTAL</b></td><td class="num"><b>' + fmtInt(total) + '</b></td><td></td></tr>' +
       '</table>' +
       (obss.length ? '<p class="remito-obs"><b>Observaciones:</b> ' + esc(obss.join(' · ')) + '</p>' : '') +
@@ -7068,7 +7243,7 @@ function trazaBodyHTML(dua) {
         (movs.length ? movs.map(m =>
           '<tr>' + td(fmtDate(m.fecha)) + td(m.tipo) + td(m.nroStock || '0', 'mono') + td(m.producto) + td(m.medida || '0') +
           '<td>' + esc(m.coordenada) + ' <small>(' + esc(sectorDeCoord(m.coordenada)) + ')</small></td>' +
-          '<td class="num">' + esc((impactoDe(m) > 0 ? '+' : '') + fmtInt(Math.abs(m.cantidad))) + '</td>' + td(m.refDoc) + '</tr>').join('')
+          '<td class="num">' + esc((impactoDe(m) > 0 ? '+' : '') + fmtInt(Math.abs(m.cantidad))) + '</td>' + td(normalizarRefDoc(m.refDoc)) + '</tr>').join('')
         : '<tr><td colspan="8" style="text-align:center">Sin movimientos para este DUA</td></tr>') + '</table>' +
       '<div class="remito-sub">POSICIONES VIGENTES ASOCIADAS (' + lineas.length + ')</div>' +
       '<table class="print-tbl"><tr>' + th('Posición') + th('Sector') + th('N.º stock') + th('Cliente') + th('Producto') + th('Medida') + th('Cajas', true) + th('Última ref.') + '</tr>' +
@@ -7094,7 +7269,7 @@ function csvTrazabilidadDUA(dua) {
   descargarCSV('trazabilidad_DUA_' + duaS.replace(/[^\w.-]+/g, '_') + '_' + todayISO() + '.csv',
     ['Fecha', 'Tipo', 'N.º stock', 'Cliente', 'Producto', 'Medida', 'Coordenada', 'Sector', 'Cajas', 'Impacto', 'Contenedor', 'Ref.', 'Observaciones'],
     movs.map(m => [m.fecha, m.tipo, m.nroStock || '0', m.cliente, m.producto, m.medida || '0', m.coordenada, sectorDeCoord(m.coordenada),
-      m.cantidad, impactoDe(m), m.contenedor && m.contenedor !== '0' ? m.contenedor : '', m.refDoc, m.obs]));
+      m.cantidad, impactoDe(m), m.contenedor && m.contenedor !== '0' ? m.contenedor : '', normalizarRefDoc(m.refDoc), m.obs]));
   auditar('CSV de trazabilidad exportado', 'DUA ' + duaS + ' · ' + movs.length + ' movimientos');
 }
 function openTrazabilidadDuaModal(duaInicial) {
@@ -7162,7 +7337,7 @@ function renderTzBody(dua) {
       movs.map(m => '<tr><td class="mono">' + esc(fmtDate(m.fecha)) + '</td><td>' + badgeTipo(m.tipo) + '</td><td class="mono">' + esc(m.nroStock || '0') + '</td>' +
         '<td class="strong">' + esc(m.producto || '—') + '</td><td>' + esc(m.medida || '—') + '</td>' +
         '<td class="coord">' + esc(m.coordenada) + '</td><td class="num ' + (impactoDe(m) > 0 ? 'plus' : 'minus') + '">' + (impactoDe(m) > 0 ? '+' : '') + fmtInt(Math.abs(m.cantidad)) + '</td>' +
-        '<td>' + esc(m.refDoc || '—') + '</td></tr>').join('') + '</tbody></table></div>' +
+        '<td>' + esc(normalizarRefDoc(m.refDoc) || '—') + '</td></tr>').join('') + '</tbody></table></div>' +
     '<div class="form-section">Posiciones vigentes asociadas (' + lineas.length + ' · ' + fmtInt(totalVig) + ' cajas)</div>' +
     (lineas.length
       ? '<div class="tbl-wrap" style="box-shadow:none;border:0;max-height:30vh"><table class="tbl"><thead><tr><th>Posición</th><th>Sector</th><th>N.º stock</th><th>Producto</th><th>Medida</th><th class="num">Cajas</th><th>Última ref.</th></tr></thead><tbody>' +
@@ -7390,7 +7565,7 @@ function reporteDiaBodyHTML(f) {
         '<tr>' + th('N.º stock') + th('Producto / SKU') + th('Medida') + th('Posición') + th('Sector') + th('Cajas', true) + th('Ref. / documento') + '</tr>' +
         g.movs.map(m => '<tr>' + td(m.nroStock || '0', 'mono') + td(m.producto) + td(m.medida || '0') +
           td(m.coordenada, 'mono') + td(sectorDeCoord(m.coordenada)) +
-          '<td class="num"><b>' + fmtInt(m.cantidad) + '</b></td>' + td(m.refDoc) + '</tr>').join('') +
+          '<td class="num"><b>' + fmtInt(m.cantidad) + '</b></td>' + td(normalizarRefDoc(m.refDoc)) + '</tr>').join('') +
         '</table>').join('') +
         '<table class="print-tbl"><tr><td><b>TOTAL DEL DÍA (' + movs.length + ' movimientos · ' + grupos.length + ' DUA)</b></td>' +
         '<td class="num" style="width:120px"><b>' + fmtInt(total) + ' cajas</b></td></tr></table>'
@@ -7416,7 +7591,7 @@ function csvReporteDia(f) {
     ['Fecha', 'DUA', 'Tipo', 'N.º stock', 'Cliente', 'Contenedor', 'Producto', 'Medida', 'Posición', 'Sector', 'Cajas', 'Ref.', 'Observaciones'],
     movs.map(m => [m.fecha, String(m.dua == null ? '' : m.dua).trim() || 'Sin DUA', m.tipo, m.nroStock || '0', m.cliente,
       m.contenedor && m.contenedor !== '0' ? m.contenedor : '', m.producto, m.medida || '0', m.coordenada,
-      sectorDeCoord(m.coordenada), m.cantidad, m.refDoc, m.obs]));
+      sectorDeCoord(m.coordenada), m.cantidad, normalizarRefDoc(m.refDoc), m.obs]));
   auditar('CSV del reporte del día exportado', fmtDate(f.fecha) + ' · ' + movs.length + ' movimientos');
 }
 function openReporteDiaModal(fInicial) {
@@ -7465,7 +7640,7 @@ function openReporteDiaModal(fInicial) {
                 '<table class="tbl"><thead><tr><th>N.º stock</th><th>Producto</th><th>Medida</th><th>Posición</th><th>Sector</th><th class="num">Cajas</th><th>Ref.</th></tr></thead><tbody>' +
                 g.movs.map(m => '<tr><td class="mono">' + esc(m.nroStock || '0') + '</td><td class="strong">' + esc(m.producto || '—') + '</td><td>' + esc(m.medida || '—') + '</td>' +
                   '<td class="coord">' + esc(m.coordenada) + '</td><td>' + esc(sectorDeCoord(m.coordenada)) + '</td>' +
-                  '<td class="num strong">' + fmtInt(m.cantidad) + '</td><td>' + esc(m.refDoc || '—') + '</td></tr>').join('') +
+                  '<td class="num strong">' + fmtInt(m.cantidad) + '</td><td>' + esc(normalizarRefDoc(m.refDoc) || '—') + '</td></tr>').join('') +
                 '</tbody></table>').join('') +
             '</div>'
           : '<div class="alert warn">' + ICONS.alert + '<div><b>No hay ' + esc(c.tipo === 'todos' ? 'movimientos' : reporteDiaNombreTipo(c.tipo).toLowerCase()) +
