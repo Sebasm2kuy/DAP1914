@@ -4428,7 +4428,7 @@ function openUsuarioModal(u) {
       '<div class="form-section">Datos de la cuenta</div>' +
       '<div class="form-grid">' +
         fieldHTML('usr-nombre', 'Nombre y apellido', '<input id="usr-nombre" placeholder="Ej.: María González" value="' + esc(u.nombre || '') + '">') +
-        fieldHTML('usr-usuario', 'Usuario (para entrar)', '<input id="usr-usuario" placeholder="Ej.: mgonzalez" value="' + esc(u.usuario || '') + '" autocapitalize="none" spellcheck="false"' + (u.builtIn ? ' disabled title="Las cuentas del sistema conservan su usuario"' : '') + '>') +
+        fieldHTML('usr-usuario', 'Usuario (para entrar)', '<input id="usr-usuario" placeholder="Ej.: mgonzalez" value="' + esc(u.usuario || '') + '" autocapitalize="none" spellcheck="false"' + (u.builtIn ? ' title="Cuenta del sistema: podés corregir el usuario de ingreso (la cuenta sigue siendo no eliminable ni desactivable)"' : '') + '>') +
       '</div>' +
       '<div class="form-grid">' +
         fieldHTML('usr-clave', editing ? 'Contraseña' : 'Contraseña', '<input id="usr-clave" type="password" autocomplete="new-password" placeholder="' +
@@ -4480,7 +4480,7 @@ function guardarUsuario(original) {
   if (original) {
     u = original;
     u.nombre = nombre;
-    if (!u.builtIn) u.usuario = usuario;
+    u.usuario = usuario;
     if (sinClave) { u.clave = null; u.sinClave = true; }
     else if (clave) { u.clave = hashClave(clave); u.sinClave = false; }
     u.perms = perms;
@@ -5043,12 +5043,15 @@ function stockNivel(coord, nivel) {
   return s;
 }
 function partidasNivel(coord, nivel) {
+  /* Una partida por (N.º stock + cliente + producto + medida): dos productos en
+     el mismo pallet son dos partidas y la posición queda como palet compartido,
+     igual que en Stock Actual y en el saldo vigente por partida. */
   const map = new Map();
   for (const m of DB.movimientos) {
     if (normCoord(m.coordenada) !== coord || (Number(m.nivel) || 1) !== nivel) continue;
-    const k = String(m.nroStock ?? '');
+    const k = [String(m.nroStock ?? ''), m.cliente || '', normKey(m.producto), normKey(m.medida)].join('§');
     let p = map.get(k);
-    if (!p) { p = { nroStock: k, cliente: m.cliente || '', producto: m.producto || '', medida: m.medida || '', cajas: 0 }; map.set(k, p); }
+    if (!p) { p = { nroStock: String(m.nroStock ?? ''), cliente: m.cliente || '', producto: m.producto || '', medida: m.medida || '', cajas: 0 }; map.set(k, p); }
     p.cajas += impactoDe(m);
   }
   return Array.from(map.values()).filter(p => p.cajas > 0);
@@ -6388,6 +6391,9 @@ function openMovModal(mov, linea, tipoFijo) {
         fieldHTML('mv-ref', 'Ref. / documento', inp('mv-ref', m.refDoc, 'list="dl-ref" placeholder="ej. Ingreso, Salida, Remito 123"')) +
         fieldHTML('mv-obs', 'Observaciones', inp('mv-obs', m.obs, 'placeholder="ej. 1 pallet, 22 pallets"')) +
       '</div>' +
+      (editing ? '' : '<div id="mvLineasExtra"></div>' +
+        '<div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn sm" id="mvAddLinea">' + ICONS.plus + ' Agregar producto al pallet</button>' +
+        '<span class="muted" style="font-size:12px;max-width:640px">Las líneas comparten coordenada, nivel, N.º stock, DUA, contenedor y fecha; cada una impacta a su propio producto y la posición queda como <b>palet compartido</b>.</span></div>') +
       '<div class="form-section">Impacto stock</div>' +
       '<div class="form-grid" style="grid-template-columns:1fr 1fr">' +
         '<div class="checkline"><input type="checkbox" id="mv-manual"><label for="mv-manual" style="margin:0">Definir el impacto manualmente</label></div>' +
@@ -6425,8 +6431,40 @@ function openMovModal(mov, linea, tipoFijo) {
       $('#mv-prod').onchange = aplicarCatalogo;
       $('#mv-prod').oninput = debounce(aplicarCatalogo, 250);
       if (m.producto) aplicarCatalogo();
+      /* Líneas adicionales del mismo pallet («+ Agregar producto al pallet»):
+         cada línea es un movimiento propio con el mismo pallet/cabecera, para
+         que el stock, el Resumen SKU y el Panel sumen cada producto por separado. */
+      let lineasExtra = 0;
+      const renderLineas = () => {
+        const cont = $('#mvLineasExtra');
+        if (!cont) return;
+        cont.innerHTML = Array.from({ length: lineasExtra }, (_, i) => {
+          const n = i + 2;
+          return '<div class="form-grid" style="grid-template-columns:2fr 1.2fr .8fr auto;align-items:end">' +
+            fieldHTML('mv-l' + n + '-prod', 'Producto (línea ' + n + ')', inp('mv-l' + n + '-prod', '', 'list="dl-prod" placeholder="ej. Ajo Granulado"')) +
+            fieldHTML('mv-l' + n + '-med', 'Medida', inp('mv-l' + n + '-med', '', 'list="dl-med" placeholder="ej. 40×20"')) +
+            fieldHTML('mv-l' + n + '-cant', 'Cantidad (cajas)', inp('mv-l' + n + '-cant', '', 'type="number" min="0.01" step="any" placeholder="Positivo"')) +
+            '<button class="icon-btn danger" data-mvrm="' + i + '" title="Quitar esta línea del pallet" style="margin-bottom:2px">' + ICONS.x + '</button>' +
+            '</div>';
+        }).join('');
+        $$('#mvLineasExtra [data-mvrm]').forEach(b => b.onclick = () => { lineasExtra--; renderLineas(); });
+        for (let i = 0; i < lineasExtra; i++) { const cel = $('#mv-l' + (i + 2) + '-cant'); if (cel) cel.oninput = preview; }
+        const multi = lineasExtra > 0;
+        if (!editing) {
+          $('#mv-manual').disabled = multi;
+          $('#mv-imp').disabled = multi;
+          if (multi) $('#mv-manual').checked = false;
+        }
+      };
+      const addBtn = $('#mvAddLinea');
+      if (addBtn) addBtn.onclick = () => { lineasExtra++; renderLineas(); const f = $('#mv-l' + (lineasExtra + 1) + '-prod'); if (f) f.focus(); };
+      const cantsLineas = () => {
+        let c = Math.abs(Number($('#mv-cant').value) || 0);
+        for (let i = 0; i < lineasExtra; i++) { const el = $('#mv-l' + (i + 2) + '-cant'); c += Math.abs(Number(el && el.value) || 0); }
+        return c;
+      };
       const preview = () => {
-        const tipo = $('#mv-tipo').value, cant = Math.abs(Number($('#mv-cant').value) || 0);
+        const tipo = $('#mv-tipo').value, cant = cantsLineas();
         const manual = $('#mv-manual').checked;
         const imp = manual ? (Number($('#mv-imp').value) || 0) : impactoCalculado(tipo, cant);
         const sgn = imp > 0 ? '+' : imp < 0 ? '−' : '';
@@ -6460,6 +6498,16 @@ function openMovModal(mov, linea, tipoFijo) {
           cantidad: Math.abs(Number(get('mv-cant')) || 0), refDoc: normalizarRefDoc(get('mv-ref')), obs: get('mv-obs'),
           impacto: $('#mv-manual').checked ? (Number(get('mv-imp')) || 0) * ($('#mv-tipo').value === 'Egreso' || $('#mv-tipo').value === 'Ajuste -' ? -1 : 1) : null,
         };
+        const lineas = [{ producto: nuevo.producto, medida: nuevo.medida, cantidad: nuevo.cantidad }];
+        for (let i = 0; i < lineasExtra; i++) {
+          lineas.push({
+            producto: get('mv-l' + (i + 2) + '-prod'),
+            medida: get('mv-l' + (i + 2) + '-med') || '0',
+            cantidad: Math.abs(Number(get('mv-l' + (i + 2) + '-cant')) || 0),
+          });
+        }
+        const multi = !editing && lineasExtra > 0;
+        const creados = [];
         let ok = true;
         if (!nuevo.fecha) { markInvalid('mv-fecha', 'Ingresá la fecha.'); ok = false; }
         if (!TIPOS.includes(nuevo.tipo)) { markInvalid('mv-tipo', 'Elegí el tipo de movimiento.'); ok = false; }
@@ -6467,16 +6515,23 @@ function openMovModal(mov, linea, tipoFijo) {
         if (!nuevo.cliente) { markInvalid('mv-cliente', 'Ingresá el cliente.'); ok = false; }
         if (!nuevo.producto) { markInvalid('mv-prod', 'Ingresá el producto.'); ok = false; }
         if (!(nuevo.cantidad > 0)) { markInvalid('mv-cant', 'La cantidad debe ser mayor a cero (siempre positiva).'); ok = false; }
+        if (multi) {
+          lineas.forEach((L, i) => {
+            if (!L.producto) { markInvalid('mv-l' + (i + 2) + '-prod', 'Ingresá el producto de esta línea.'); ok = false; }
+            if (!(L.cantidad > 0)) { markInvalid('mv-l' + (i + 2) + '-cant', 'La cantidad debe ser mayor a cero.'); ok = false; }
+          });
+        }
         if (nuevo.impacto == null) nuevo.impacto = impactoCalculado(nuevo.tipo, nuevo.cantidad);
         if (!ok) return;
         /* Validación de saldo disponible en egresos (confirmación controlada) */
         if (!editing && (nuevo.tipo === 'Egreso' || nuevo.tipo === 'Ajuste -')) {
           const lineas = lineasInventarioCache().filter(l => l.coordenada === nuevo.coordenada);
           const disp = lineas.reduce((a, l) => a + Math.max(0, disponibleDeLinea(l)), 0);
-          if (nuevo.cantidad > disp) {
+          const totalEgresar = cantsLineas();
+          if (totalEgresar > disp) {
             const confirmar = await confirmDialog({
               title: 'La salida supera el saldo disponible',
-              html: 'En <b>' + esc(nuevo.coordenada) + '</b> hay <b>' + fmtInt(disp) + '</b> cajas disponibles (descontando reservas) y querés egresar <b>' + fmtInt(nuevo.cantidad) + '</b>.<br><br>La posición quedará en <b>saldo negativo (REVISAR SALDO)</b>. ¿Confirmás la salida?',
+              html: 'En <b>' + esc(nuevo.coordenada) + '</b> hay <b>' + fmtInt(disp) + '</b> cajas disponibles (descontando reservas) y querés egresar <b>' + fmtInt(totalEgresar) + '</b>.<br><br>La posición quedará en <b>saldo negativo (REVISAR SALDO)</b>. ¿Confirmás la salida?',
               yes: 'Confirmar salida', danger: true,
             });
             if (!confirmar) return;
@@ -6492,16 +6547,24 @@ function openMovModal(mov, linea, tipoFijo) {
             auditar('Movimiento editado', fmtDate(mov.fecha) + ' · ' + mov.tipo + ' · ' + fmtInt(mov.cantidad) + ' cajas · ' + (mov.producto || '—') + ' · ' + mov.coordenada);
           }
         } else {
-          nuevo.id = uid(); nuevo.n = nextN();
-          DB.movimientos.push(nuevo);
-          auditar('Movimiento creado', nuevo.tipo + ' · ' + fmtInt(nuevo.cantidad) + ' cajas · ' + (nuevo.producto || '—') + ' · ' + nuevo.coordenada + (nuevo.cliente ? ' · ' + nuevo.cliente : ''));
+          for (const L of lineas) {
+            const mov = Object.assign({}, nuevo, {
+              id: uid(), n: nextN(),
+              producto: L.producto, medida: L.medida, cantidad: L.cantidad,
+              impacto: multi ? impactoCalculado(nuevo.tipo, L.cantidad) : nuevo.impacto,
+            });
+            DB.movimientos.push(mov);
+            creados.push(mov);
+            auditar('Movimiento creado', mov.tipo + ' · ' + fmtInt(mov.cantidad) + ' cajas · ' + (mov.producto || '—') + ' · ' + mov.coordenada + (mov.cliente ? ' · ' + mov.cliente : '') + (multi ? ' · línea ' + creados.length + ' de ' + lineas.length : ''));
+          }
         }
-        ensureInCatalog(nuevo.producto, nuevo.medida, nuevo.cliente);
+        for (const L of lineas) ensureInCatalog(L.producto, L.medida, nuevo.cliente);
         dataChanged();
         closeModal();
-        toast(editing ? 'Movimiento actualizado' : 'Movimiento registrado', 'ok',
-          nuevo.tipo + ' · ' + fmtInt(nuevo.cantidad) + ' cajas · ' + nuevo.coordenada + ' · ' + (nuevo.producto || '—'));
-        if (conRemito) imprimirRemito(nuevo);
+        const totalCant = lineas.reduce((a, L) => a + L.cantidad, 0);
+        toast(editing ? 'Movimiento actualizado' : (multi ? lineas.length + ' productos registrados en el pallet' : 'Movimiento registrado'), 'ok',
+          nuevo.tipo + ' · ' + (multi ? fmtInt(totalCant) + ' cajas en ' + lineas.length + ' productos · ' : fmtInt(nuevo.cantidad) + ' cajas · ') + nuevo.coordenada + ' · ' + lineas.map(L => L.producto).join(' + '));
+        if (conRemito) { if (multi) imprimirComprobanteMovs(creados, 'Pallet ' + nuevo.coordenada + ' · ' + lineas.length + ' productos'); else imprimirRemito(creados[0]); }
         if (!editing && !conRemito && nuevo.tipo === 'Egreso') setTimeout(() => openReporteDiaModal({ fecha: nuevo.fecha, tipo: 'Egreso', cli: 'todos' }), 220);
         if (currentView === 'movs') RENDERERS.movs();
       };
