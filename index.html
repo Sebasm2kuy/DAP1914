@@ -659,6 +659,26 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 .print-title { font-size: 15px; font-weight: 900; }
 .print-sub { font-size: 11px; color: #444; }
 
+/* ---------- Etiqueta de pallet (reimpresión desde Movimientos · Sebastián y Raúl) ---------- */
+.etq-pallet { max-width: 186mm; margin: 12px auto 0; border: 2.5px solid #000; border-radius: 10px; padding: 16px 20px 14px; page-break-inside: avoid; background: #fff; }
+.etq-top { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #000; padding-bottom: 9px; }
+.etq-marca { width: 40px; height: 40px; border-radius: 9px; background: #0b5cad; color: #fff; display: grid; place-items: center; flex: none; }
+.etq-marca svg { width: 22px; height: 22px; }
+.etq-tit b { display: block; font-size: 16.5px; font-weight: 900; letter-spacing: .6px; }
+.etq-tit span { font-size: 10.5px; color: #444; }
+.etq-fecha { margin-left: auto; font-size: 10.5px; color: #444; text-align: right; flex: none; line-height: 1.35; }
+.etq-coord { display: flex; align-items: baseline; gap: 14px; font-size: 44px; font-weight: 900; letter-spacing: 2px; padding: 11px 0 9px; line-height: 1.05; }
+.etq-nivel { font-size: 14px; font-weight: 800; letter-spacing: .5px; color: #fff; background: #0b5cad; border-radius: 7px; padding: 4px 10px; }
+.etq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 26px; border-top: 1.5px solid #000; padding-top: 10px; }
+.etq-campo { display: flex; align-items: baseline; gap: 8px; border-bottom: 1px dotted #999; padding-bottom: 4px; min-width: 0; }
+.etq-campo span { flex: none; width: 118px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #555; }
+.etq-campo b { font-size: 13.5px; font-weight: 700; overflow-wrap: anywhere; }
+.etq-campo.mono b { font-family: 'Courier New', monospace; }
+.etq-obs { display: flex; align-items: baseline; gap: 8px; border-top: 1.5px solid #000; margin-top: 10px; padding-top: 8px; min-width: 0; }
+.etq-obs span { flex: none; width: 118px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #555; }
+.etq-obs b { font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
+.etq-pie { border-top: 1px dashed #999; margin-top: 10px; padding-top: 7px; font-size: 9.5px; color: #666; text-align: center; }
+
 /* ---------- Impresión: solo el documento ---------- */
 @media print {
   body { background: #fff !important; }
@@ -4024,8 +4044,8 @@ function toggleTheme() {
 function closeSidebar() { $('#sidebar').classList.remove('open'); }
 
 /* ---------- Impresión (etiquetas, remitos, reportes) ---------- */
-function imprimirHTML(titulo, bodyHTML) {
-  if (!permisoObloqueo('imprimir')) return;
+function imprimirHTML(titulo, bodyHTML, opts) {
+  if (!(opts && opts.libre) && !permisoObloqueo('imprimir')) return;
   const area = $('#printArea');
   if (!area) { toast('No se pudo preparar la impresión', 'error'); return; }
   area.innerHTML = '<div class="print-doc"><div class="print-head"><div class="print-logo">' + ICONS.logo + '</div>' +
@@ -4188,6 +4208,15 @@ function sinPermiso(perm) {
   toast('Tu usuario no tiene permiso para esta acción', 'warn',
     'Permiso requerido: ' + info.t + ' · pedile a Sebastián que lo habilite desde Usuarios');
   auditar('Permiso denegado', info.t + ' (' + perm + ') · usuario ' + ((typeof SESION !== 'undefined' && SESION) ? SESION.usuario : '¿?'));
+}
+/* ¿La sesión activa corresponde a Sebastián o a Raúl? Es el único rol con
+   permiso para reimprimir etiquetas de pallet desde el registro de movimientos
+   (el Invitado · consulta y cualquier otro usuario no ven la acción). */
+function esSebastianORaul() {
+  if (typeof SESION === 'undefined' || !SESION) return false;
+  const sinAcentos = s => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, '');
+  const nn = sinAcentos(SESION.nombre), nu = sinAcentos(SESION.usuario);
+  return SESION.builtIn === 'admin' || nn === 'sebastian' || nu === 'sebastian' || nn === 'raul' || nu === 'raul';
 }
 function nombreUsuarioSesion() {
   if (typeof SESION !== 'undefined' && SESION) return SESION.nombre || SESION.usuario || 'Usuario';
@@ -5568,6 +5597,7 @@ RENDERERS.movs = function (patch) {
         '<td>' + celdaVigencia(m, saldos) + '</td>' +
         '<td><div class="row-actions">' +
           '<button class="icon-btn" data-remito="' + esc(m.id) + '" title="Imprimir remito">' + ICONS.print + '</button>' +
+          (esSebastianORaul() ? '<button class="icon-btn" data-etiqueta="' + esc(m.id) + '" title="Reimprimir etiqueta de pallet">' + ICONS.pal + '</button>' : '') +
           '<button class="icon-btn" data-mail="' + esc(m.id) + '" title="Enviar comprobante por correo (Gmail)">' + ICONS.mail + '</button>' +
           (puede('mov') ? '<button class="icon-btn" data-edit="' + esc(m.id) + '" title="Editar">' + ICONS.edit + '</button>' : '') +
           (puede('mov') && !anulado ? '<button class="icon-btn" data-anular="' + esc(m.id) + '" title="Anular con ajuste de reversa">' + ICONS.ban + '</button>' : '') +
@@ -5579,6 +5609,7 @@ RENDERERS.movs = function (patch) {
     $('#movsTbl').innerHTML = html;
     $$('#movsTbl [data-remito]').forEach(b => b.onclick = () => imprimirRemito(DB.movimientos.find(x => x.id === b.dataset.remito)));
     $$('#movsTbl [data-mail]').forEach(b => b.onclick = () => emailComprobanteMov(DB.movimientos.find(x => x.id === b.dataset.mail)));
+    $$('#movsTbl [data-etiqueta]').forEach(b => b.onclick = () => imprimirEtiquetaPallet(DB.movimientos.find(x => x.id === b.dataset.etiqueta)));
     $$('#movsTbl [data-edit]').forEach(b => b.onclick = () => openMovModal(DB.movimientos.find(x => x.id === b.dataset.edit)));
     $$('#movsTbl [data-anular]').forEach(b => b.onclick = () => openAnularModal(DB.movimientos.find(x => x.id === b.dataset.anular)));
     $$('#movsTbl [data-del]').forEach(b => b.onclick = async () => {
@@ -7859,6 +7890,36 @@ function imprimirComprobanteMovs(movs, titulo) {
   imprimirHTML('Comprobante de ' + tipos + ' · ' + (titulo || 'Depósito Fiscal DAP1914'), body);
 }
 /* Remito individual (mismo comprobante, un movimiento) */
+/* ---------- Reimpresión de etiqueta de pallet desde la fila (solo Sebastián y Raúl) ---------- */
+function imprimirEtiquetaPallet(mov) {
+  if (!esSebastianORaul()) { toast('La reimpresión de etiquetas de pallet está reservada a Sebastián y Raúl', 'warn'); return; }
+  if (!mov) return;
+  if (mov.anulado) { toast('El movimiento está anulado: no hay pallet vigente que etiquetar', 'warn'); return; }
+  const nivel = Math.round(Number(mov.nivel) || 1);
+  const campo = (et, v, mono) => '<div class="etq-campo' + (mono ? ' mono' : '') + '"><span>' + et + '</span><b>' + esc(v == null || v === '' ? '—' : v) + '</b></div>';
+  const cont = (mov.contenedor && mov.contenedor !== '0') ? mov.contenedor : '';
+  const conNivel = nivel > 1 ? ' · N' + nivel : '';
+  const body = '<div class="etq-pallet">' +
+    '<div class="etq-top"><div class="etq-marca">' + ICONS.pal + '</div>' +
+    '<div class="etq-tit"><b>ETIQUETA DE PALLET</b><span>Reimpresión · Depósito Fiscal DAP1914</span></div>' +
+    '<div class="etq-fecha">Impresa<br>' + fmtDate(todayISO()) + '</div></div>' +
+    '<div class="etq-coord">' + esc(mov.coordenada || '—') + (nivel > 1 ? '<span class="etq-nivel">Nivel ' + nivel + '</span>' : '') + '</div>' +
+    '<div class="etq-grid">' +
+      campo('Producto', mov.producto) +
+      campo('Medida', mov.medida) +
+      campo('Cantidad (cajas)', fmtInt(mov.cantidad), true) +
+      campo('N.º stock', mov.nroStock, true) +
+      campo('Cliente', mov.cliente) +
+      campo('DUA', mov.dua, true) +
+      campo('Contenedor', cont, true) +
+      campo('Fecha', fmtDate(mov.fecha), true) +
+    '</div>' +
+    '<div class="etq-obs"><span>Observaciones</span><b>' + esc(mov.obs || '—') + '</b></div>' +
+    '<div class="etq-pie">' + esc(mov.tipo) + ' · movimiento ' + esc(mov.id || '—') + ' · reimprimió ' + esc(nombreUsuarioSesion()) + '</div>' +
+    '</div>';
+  auditar('Etiqueta de pallet reimprimida', fmtDate(mov.fecha) + ' · ' + mov.tipo + ' · ' + (mov.producto || '—') + ' · ' + (mov.coordenada || '—') + conNivel.replace(' · ', ' ') + ' · usuario ' + ((typeof SESION !== 'undefined' && SESION) ? SESION.usuario : '¿?'));
+  imprimirHTML('Etiqueta de pallet · ' + (mov.producto || '—') + ' · ' + (mov.coordenada || '—') + conNivel, body, { libre: true });
+}
 function imprimirRemito(mov) {
   if (!mov) return;
   imprimirComprobanteMovs([mov], 'Comprobante de ' + String(mov.tipo || '').toLowerCase() + ' · ' + (mov.producto || '—'));
