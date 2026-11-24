@@ -51,10 +51,11 @@ Tocá el botón **Drive** del encabezado (o la tarjeta de sincronización del Pa
 | `WMS_DAP1914/Respaldos/WMS_DAP1914_DB_YYYYMMDD_HHMM.xlsx` | **Copias de respaldo fechadas** en cada «Respaldar ahora» (se conservan las últimas 15). |
 | `WMS_DAP1914/Documentacion_DUAs/` | **PDFs adjuntos por DUA** (DUA escaneado, remitos, documentación aduanera) vinculados a cada DUA o movimiento. |
 
-- **Conexión automática**: la app guarda la sesión de Drive en el navegador y al abrirla reconecta sola, sin ventanas ni clics. Si el token venció (~1 h), reconecta en silencio con el próximo clic o al abrir el botón **Drive** — Google solo permite su ventana de login a partir de un clic del usuario. La primera vez se conecta con el botón **Drive**; después queda automático.
+- **Preconfiguración de fábrica**: el **Google Client ID** del proyecto WMS DAP1914 y la cuenta del depósito (**frimaraldap1914@gmail.com**) ya vienen integrados en el código: no hay que pegarlos nunca, y siguen ahí aunque se limpie el navegador, se importen datos o se actualice el sitio. «Sincronización automática» viene **activada por defecto**.
+- **Conexión y descarga automáticas al iniciar sesión** (Sebastián e Invitado): la app guarda la sesión de Drive en el navegador y al entrar reconecta sola, sin ventanas ni clics (`prompt=none` + `login_hint`); si el token venció (~1 h), reconecta en silencio con el próximo clic o al abrir el botón **Drive**. Después de conectar baja y aplica **automáticamente la última versión guardada en Drive** (con snapshot de seguridad previo) cuando Drive tiene algo más nuevo que lo local — o cuando el navegador está vacío. La única vez que pide autorización interactiva es la primera en cada navegador.
 - **Guardar en Drive**: sube el maestro `.xlsx` + el estado completo.
-- **Descargar desde Drive**: en otro dispositivo, iniciá sesión con la misma cuenta y con un clic bajás el último estado guardado (con snapshot de seguridad previo). La app te muestra la fecha del archivo en Drive para decidir.
-- **Sincronización automática** (opcional, recomendada): guarda en Drive ~25 s después de cada cambio.
+- **Descargar desde Drive**: en otro dispositivo, con un clic bajás el último estado guardado (con snapshot de seguridad previo). La app te muestra la fecha del archivo en Drive para decidir.
+- **Sincronización automática** (activada por defecto): guarda en Drive ~25 s después de cada cambio.
 - **Documentación por DUA**: en **Aduana / DUA** cada fila tiene un botón 📁 para adjuntar, listar y descargar los PDFs de ese DUA; también se pueden adjuntar por correo.
 
 ## Envío de correos con Gmail
@@ -70,9 +71,9 @@ El asunto y el cuerpo vienen prellenados; se puede editar destinatario, asunto, 
 
 ---
 
-## Configuración de Google Drive y Gmail (una sola vez, ~3 minutos)
+## Configuración de Google Drive y Gmail (ya viene hecha)
 
-La app incluye esta misma guía en **Configuración → Sincronización con Google Drive y Gmail**, con el *origen exacto* de tu instalación para copiar y pegar en Google Console.
+El **Client ID de fábrica ya está integrado y activo**: no hay que configurar nada para usar Drive y Gmail. Esta guía queda como referencia **solo si algún día hay que recrear las credenciales** en Google Cloud (por ejemplo, si se elimina el proyecto); la app incluye la misma guía en **Configuración → Sincronización con Google Drive y Gmail**, con el *origen exacto* de tu instalación para copiar y pegar.
 
 1. Abrí <https://console.cloud.google.com> e iniciá sesión con la cuenta del depósito: **frimaraldap1914@gmail.com**.
 2. En la barra superior, desplegá el selector de proyectos → **Nuevo proyecto** → nombre `WMS DAP1914` → **Crear**.
@@ -83,7 +84,7 @@ La app incluye esta misma guía en **Configuración → Sincronización con Goog
    - `https://sebasm2kuy.github.io` (GitHub Pages), y/o
    - `http://localhost:8000` (servidor local).
 7. Creá el ID de cliente y **copiá el valor** (termina en `.apps.googleusercontent.com`).
-8. En la app: **Configuración → Sincronización con Google** → pegá el **Google Client ID** → **Guardar** → **Conectar con Google Drive**. La primera vez Google avisa que la app «no está verificada»: es lo esperado en modo Testing con tu propia cuenta → **Continuar**.
+8. En la app: **Configuración → Sincronización con Google** ya viene el campo **precargado de fábrica**; solo si lo cambiás, **Guardá**. Apretá **Conectar con Google Drive** (una única vez por navegador). La primera vez Google avisa que la app «no está verificada»: es lo esperado en modo Testing con tu propia cuenta → **Continuar**.
 
 **Permisos mínimos que pide la app** (verificalos en la pantalla de consentimiento):
 
@@ -102,7 +103,7 @@ El token de acceso se guarda solo en tu navegador (localStorage) para que la app
 Al abrir la app aparece la **pantalla de acceso**: se elige el usuario y (si tiene) se escribe la contraseña — el navegador **no puede autocompletarla** (se teclea cada vez). La sesión queda activa **solo mientras esa ventana esté abierta**: al cerrar la página se cierra sola y la próxima visita vuelve a pedir usuario (recargar la pestaña sí mantiene la sesión); también se puede salir antes con «Cerrar sesión» en el menú lateral.
 
 - **Sebastián** (`sebastian`, con contraseña) — **acceso total**: los 13 permisos + **panel administrativo «Usuarios»** para crear cuentas y asignar permisos a medida. Su cuenta no se puede eliminar ni desactivar, y siempre conserva acceso total.
-- **Invitado** (sin contraseña, un clic) — **solo consulta**: ve todas las vistas, imprime y exporta (comprobantes, listados, reportes, CSV, Excel) y puede **descargar los datos actualizados desde Drive**, pero no modifica nada: los botones de escritura están ocultos y las acciones bloqueadas con aviso.
+- **Invitado** (sin contraseña, un clic) — **solo consulta**: ve todas las vistas, imprime y exporta (comprobantes, listados, reportes, CSV, Excel) y al entrar la app intenta **conectar y descargar sola** los datos actualizados de Drive (silenciosamente, con `prompt=none`); si ese navegador no tiene sesión de Google del depósito, ve **la última copia local sincronizada** como respaldo de lectura, pero no modifica nada: los botones de escritura están ocultos y las acciones bloqueadas con aviso.
 
 El **panel «Usuarios»** (visible solo para administradores, en Administración → Usuarios) permite **crear, editar, activar/desactivar y eliminar cuentas**, con contraseña o de acceso directo, y asignar **13 permisos granulares**: movimientos (incluye anular y conteos), traslados, carga rápida, pallets vacíos, catálogos (clientes/productos/posiciones), reservas, aduana/DUA, imprimir y exportar, enviar correos, descargar de Drive, respaldar en Drive, configuración e importación, y administración total. Cada inicio de sesión, cierre, creación y cambio de permisos queda en la **Auditoría** con el usuario responsable.
 
@@ -155,7 +156,7 @@ Las contraseñas se guardan como **hash SHA-256** (nunca en texto plano) dentro 
 ## Verificación
 
 - KPIs de la app 1:1 con la planilla original: **6.247 cajas · 98 posiciones ocupadas · 9 SKU con saldo · 99 posiciones con movimientos · 107 líneas de Posiciones · saldo de pallets −30**.
-- Suite de pruebas automática incluida: 104 checks de núcleo (SHA-256 con vectores NIST, permisos y sesión, bootstrap de usuarios, generador PDF con tabla xref verificada byte a byte y **límites de página validados texto por texto**, constructor MIME de Gmail con roundtrip de adjuntos, codificación base64/WinAnsi, constructores de comprobante/trazabilidad/listado/reporte del día y filtros de pallets) + 123 checks de navegador (Playwright: pantalla de acceso con rechazo de clave incorrecta, contraseña sin autocompletado, invitado sin contraseña con botones de escritura ocultos y acciones bloqueadas, sesión por ventana que se cierra al abrir una pestaña nueva, conexión automática de Drive con token guardado y reconexión verificadas, las 13 vistas, modales Drive/correo/configuración/trazabilidad/listado/reporte del día, flujo completo egreso → reporte del día, panel administrativo con alta/login/permisos/desactivación/baja de usuarios, generación de PDF en página validada con poppler, exportación Excel, persistencia, cero errores de consola) + chequeo responsive en 375/768/1360 px **incluida la pantalla de acceso**.
+- Suite de pruebas automática incluida: 104 checks de núcleo (SHA-256 con vectores NIST, permisos y sesión, bootstrap de usuarios, generador PDF con tabla xref verificada byte a byte y **límites de página validados texto por texto**, constructor MIME de Gmail con roundtrip de adjuntos, codificación base64/WinAnsi, constructores de comprobante/trazabilidad/listado/reporte del día y filtros de pallets) + 123 checks de navegador (Playwright: pantalla de acceso con rechazo de clave incorrecta, contraseña sin autocompletado, invitado sin contraseña con botones de escritura ocultos y acciones bloqueadas, sesión por ventana que se cierra al abrir una pestaña nueva, conexión automática de Drive con token guardado y reconexión verificadas, preconfiguración de fábrica (Client ID precargado, auto-sync ON e invitado estrictamente solo lectura, 23 checks), las 13 vistas, modales Drive/correo/configuración/trazabilidad/listado/reporte del día, flujo completo egreso → reporte del día, panel administrativo con alta/login/permisos/desactivación/baja de usuarios, generación de PDF en página validada con poppler, exportación Excel, persistencia, cero errores de consola) + chequeo responsive en 375/768/1360 px **incluida la pantalla de acceso**.
 
 ## Estructura del repositorio
 

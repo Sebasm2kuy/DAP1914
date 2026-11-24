@@ -7512,6 +7512,11 @@ function openReporteDiaModal(fInicial) {
 
 /* ---------- Constantes de la cuenta y las carpetas de Drive ---------- */
 const GOOGLE_HINT_DEFAULT = 'frimaraldap1914@gmail.com';
+/* Client ID de fábrica (proyecto WMS DAP1914 en Google Cloud, cuenta
+   frimaraldap1914@gmail.com): viene preconfigurado para que la
+   sincronización ande sin pasos manuales y no se pierda al limpiar el
+   navegador, actualizar el sitio o importar datos. */
+const GOOGLE_CLIENT_ID_DEFAULT = '211305863421-fv7po471d6irg42c2a0ra6c8q4n3vjpl.apps.googleusercontent.com';
 const DRIVE_FOLDER = 'WMS_DAP1914';
 const DRIVE_DB_NAME = 'WMS_DAP1914_DB.xlsx';
 const DRIVE_JSON_NAME = 'WMS_DAP1914_estado.json';
@@ -7534,7 +7539,15 @@ const GState = {
 const LS_GTOKEN = 'wms-df-gtoken-v1';
 
 function gCfg() {
-  DB.config.google = Object.assign({ clientId: '', hint: GOOGLE_HINT_DEFAULT, autoSync: false, lastSyncAt: '', lastTo: '', ids: null }, DB.config.google || {});
+  DB.config.google = Object.assign({ clientId: GOOGLE_CLIENT_ID_DEFAULT, hint: GOOGLE_HINT_DEFAULT, autoSync: true, lastSyncAt: '', lastTo: '', ids: null }, DB.config.google || {});
+  /* Preconfiguración de fábrica: el Client ID y la cuenta del depósito nunca
+     quedan vacíos (DB vieja, importación o navegador limpiado) — siempre listos
+     en Configuración → Sincronización, sin volver a configurar nada */
+  if (!DB.config.google.clientId) DB.config.google.clientId = GOOGLE_CLIENT_ID_DEFAULT;
+  if (!DB.config.google.hint) DB.config.google.hint = GOOGLE_HINT_DEFAULT;
+  /* Migración única: la sincronización automática queda activada por defecto
+     (después el usuario puede prenderla/apagarla y se respeta) */
+  if (!DB.config.google.autoSyncDefault) { DB.config.google.autoSync = true; DB.config.google.autoSyncDefault = true; }
   return DB.config.google;
 }
 function gConnected() { return !!(GState.token && GState.email); }
@@ -8314,13 +8327,16 @@ function renderDriveButton() {
    2) Intento silencioso con Google (prompt=none, sin ventanas): funciona si
       la sesión de Google está activa y la app fue autorizada antes.
    3) Si no puede, no molesta: reconecta con el próximo clic
-      (bindRenovacionToken) o con el botón Drive la primera vez. */
-async function autoConectarDrive() {
+      (bindRenovacionToken) o con el botón Drive la primera vez.
+   Con conDescarga (inicio de sesión de Sebastián o del Invitado de consulta)
+   también baja y aplica automáticamente la última versión guardada en Drive. */
+async function autoConectarDrive(conDescarga) {
   if (gOriginProblem()) return false;
-  if (gConnected()) return true;
+  if (gConnected()) { if (conDescarga) autoDescargarDrive(); return true; }
   if (gRestaurarToken()) {
     toast('Google Drive conectado', 'ok', 'Automático con la sesión guardada · cuenta ' + GState.email);
     renderCurrentViewSafe();
+    if (conDescarga) autoDescargarDrive();
     return true;
   }
   if (!gConfigured()) return false;
@@ -8328,6 +8344,7 @@ async function autoConectarDrive() {
   try { await gEnsureTree(); } catch (e) { /* la estructura se crea en la próxima operación */ }
   toast('Google Drive conectado', 'ok', 'Conexión automática al iniciar · cuenta ' + GState.email);
   renderCurrentViewSafe();
+  if (conDescarga) autoDescargarDrive();
   return true;
 }
 
@@ -8351,6 +8368,52 @@ function bindRenovacionToken() {
       if (!yaConectado && gConnected()) toast('Google Drive conectado', 'ok', 'Conexión automática · cuenta ' + GState.email);
     }).catch(() => {});
   }, true);
+}
+
+/* ---------- Descarga automática desde Drive al iniciar sesión ---------- */
+/* Para Sebastián y para el Invitado de consulta: si Drive tiene una versión
+   más nueva que la última vista en este navegador — o el navegador está
+   vacío — se baja y aplica el último estado guardado sin preguntar nada
+   (con snapshot de seguridad previo, como la descarga manual). Si este
+   navegador no tiene sesión de Google, queda como respaldo de lectura la
+   última copia local sincronizada. */
+async function autoDescargarDrive() {
+  if (!gConnected() || typeof puede !== 'function' || !puede('drive_leer')) return false;
+  try {
+    const info = await driveInfo(); /* {db, json} en la carpeta de Drive */
+    let fuente = info.json, data = null;
+    if (fuente) {
+      try { data = JSON.parse(new TextDecoder().decode(await gDownloadBytes(fuente.id))); } catch (e) { data = null; }
+      if (!data || !data.db || !Array.isArray(data.db.movimientos)) { fuente = null; data = null; }
+    }
+    let parsed = null;
+    if (!fuente) {
+      /* Fallback: el maestro .xlsx (misma ruta que importar) */
+      if (!info.db) return false; /* todavía no hay nada guardado en Drive */
+      const bytes = await gDownloadBytes(info.db.id);
+      parsed = parseWorkbook(bytes.buffer ? bytes : new Uint8Array(bytes));
+      if (!parsed.movs.length && !parsed.clientes.length && !parsed.pallets.length) return false;
+      fuente = info.db;
+    }
+    /* Solo bajar si Drive tiene algo más nuevo que lo último sincronizado acá
+       (o este navegador nunca sincronizó): evita pisar cambios locales nuevos */
+    const local = gCfg().lastSyncAt || '';
+    const remoto = fuente.modifiedTime || '';
+    if (local && remoto && new Date(remoto) <= new Date(local)) return false;
+    if (data) {
+      restaurarDataObj(data, 'Actualización automática desde Drive · ' + fmtDateTime(fuente.modifiedTime || data.exportado));
+    } else {
+      try { crearSnapshot('Pre-descarga automática desde Drive'); } catch (e) { /* seguir igual */ }
+      aplicarImportacion(parsed, 'replace');
+      auditar('Actualización automática desde Drive', fmtInt(parsed.movs.length) + ' movimientos · Excel maestro');
+      renderNavCounts(); setView('panel');
+    }
+    gCfg().lastSyncAt = new Date().toISOString(); saveDB();
+    if (typeof renderCurrentViewSafe === 'function') renderCurrentViewSafe();
+    if (typeof hideOnboard === 'function') hideOnboard();
+    toast('Datos actualizados desde Drive', 'ok', 'Automático al iniciar sesión · ' + fmtInt(DB.movimientos.length) + ' movimientos · ' + DB.clientes.length + ' clientes · ' + DB.productos.length + ' SKUs');
+    return true;
+  } catch (e) { return false; }
 }
 
 /* ---------- Errores de Google con mensaje accionable ---------- */
@@ -8728,7 +8791,7 @@ const G_GUIDE_STEPS = [
   'Andá a <b>Credenciales → Crear credenciales → ID de cliente de OAuth</b> → tipo <b>Aplicación web</b> → Crear.',
   'En <b>Orígenes de JavaScript autorizados</b> → <b>Agregar URI</b> y pegá el <b>origen actual</b> que te muestra esta pantalla (más abajo). Si usás la app en varias URLs (GitHub Pages, localhost), agregá una por una.',
   'Copiá el <b>ID de cliente</b> que queda en pantalla (termina en <i>.apps.googleusercontent.com</i>).',
-  'Pegalo en el campo de abajo, apretá <b>Guardar Client ID</b> y después <b>Conectar con Google Drive</b>. La primera vez, Google va a avisar que la app no está verificada: es lo esperado en modo Testing con tu propia cuenta → <b>Continuar</b>.',
+  'Ese Client ID <b>ya viene precargado de fábrica</b> en el campo de abajo, así que normalmente no hay que tocar nada. Apretá <b>Conectar con Google Drive</b> y listo: la primera vez, Google va a avisar que la app no está verificada: es lo esperado en modo Testing con tu propia cuenta → <b>Continuar</b>. Después de esa única vez, la conexión y la descarga de datos son automáticas al iniciar sesión.',
 ];
 function googleSettingsSectionHTML() {
   const cfg = gCfg();
@@ -8773,16 +8836,17 @@ function bindGoogleSettings() {
   const saveBtn = $('#gsetSave');
   if (!saveBtn) return;
   saveBtn.onclick = () => {
-    const idv = $('#gsetId').value.trim();
+    /* el Client ID de fábrica nunca se vacía: si se borra el campo, se restaura */
+    const idv = $('#gsetId').value.trim() || GOOGLE_CLIENT_ID_DEFAULT;
     const hint = $('#gsetHint').value.trim() || GOOGLE_HINT_DEFAULT;
-    if (idv && !/^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(idv)) { markInvalid('gsetId', 'El Client ID debe terminar en .apps.googleusercontent.com'); return; }
+    if (!/^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(idv)) { markInvalid('gsetId', 'El Client ID debe terminar en .apps.googleusercontent.com'); return; }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(hint)) { markInvalid('gsetHint', 'Escribí un correo válido'); return; }
     const cfg = gCfg();
     cfg.clientId = idv; cfg.hint = hint;
     if (idv !== GState.clientIdUsed) { GState.client = null; GState.clientIdUsed = ''; } /* forzar re-init del cliente OAuth */
     saveDB();
     renderDriveButton();
-    toast(idv ? 'Client ID guardado' : 'Client ID quitado', 'ok', idv ? 'Ya podés conectar con Google Drive desde acá o desde el botón Drive.' : 'La sincronización quedó desactivada (la app sigue 100% operativa offline).');
+    toast('Client ID guardado', 'ok', 'Ya podés conectar con Google Drive desde acá o desde el botón Drive.');
     renderSettingsModal();
   };
   $('#gsetConnect').onclick = async () => {
@@ -8894,9 +8958,9 @@ function iniciarApp() {
   const btnDrive = $('#btnDrive');
   if (btnDrive) btnDrive.onclick = () => openDriveModal();
   if (typeof bindGoogleOnce === 'function') bindGoogleOnce();
-  /* Conexión automática con Google Drive: intento silencioso al entrar (sin
-     ventanas); si el navegador no tiene sesión de Google activa no hace nada */
-  if (typeof autoConectarDrive === 'function' && puede('drive_leer')) autoConectarDrive();
+  /* Conexión automática con Google Drive al iniciar sesión (Sebastián e
+     Invitado): reconecta en silencio y baja la última versión guardada */
+  if (typeof autoConectarDrive === 'function' && puede('drive_leer')) autoConectarDrive(true);
   /* Con el próximo clic: renueva el token por vencer o reconecta en silencio */
   if (typeof bindRenovacionToken === 'function') bindRenovacionToken();
   $('#btnExportMenu').onclick = e => { e.stopPropagation(); $('#exportDrop').classList.toggle('open'); };
