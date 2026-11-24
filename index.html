@@ -4584,14 +4584,16 @@ RENDERERS.panel = function () {
       '<div class="card"><h2 class="card-title">' + ICONS.sku + ' Stock por producto <span class="right" id="panelTotalCajas"></span></h2><div id="panelProdTbl"></div></div>' +
       '<div class="card"><h2 class="card-title">' + ICONS.ship + ' Historial de contenedores / DUA <span class="right muted" style="text-transform:none">Ingresos por contenedor</span></h2><div id="panelCont"></div></div>' +
     '</div>' +
-    '<div class="card"><h2 class="card-title">' + ICONS.map + ' Mapa visual de racks <span class="right muted" style="text-transform:none">Hacé clic en una posición para ver el detalle y registrar salidas o traslados</span></h2>' +
+    '<div class="card"><h2 class="card-title">' + ICONS.map + ' Mapa visual de racks · disposición real <span class="right muted" style="text-transform:none">Cenital según el plano del depósito (Calle A con paso central transversal + Calle B espalda con espalda) · misma geometría que el Mapa 3D · clic en una posición para el detalle y registrar salidas o traslados</span></h2>' +
       '<div class="rack-tools">' +
-        '<label style="font-size:12px;font-weight:700;color:var(--text-2)">Rack <select id="mapRack"><option value="AB">Ambos</option><option value="A">Rack A</option><option value="B">Rack B</option></select></label>' +
+        '<label style="font-size:12px;font-weight:700;color:var(--text-2)">Calle <select id="mapRack"><option value="AB">Ambas</option><option value="A">Calle A</option><option value="B">Calle B</option></select></label>' +
         '<label style="font-size:12px;font-weight:700;color:var(--text-2)">Estado <select id="mapEstado">' +
           '<option value="todos">Todos</option><option value="ocupada">Ocupadas</option><option value="libre">Libres</option><option value="compartida">Compartidas</option><option value="revisar">Revisar saldo</option>' +
         '</select></label>' +
-        '<div class="search-box" style="max-width:200px;padding:5px 10px;border-radius:7px"><input id="mapQ" placeholder="Ir a posición (ej. A150)" autocomplete="off"></div>' +
+        '<div class="search-box" style="max-width:200px;padding:5px 10px;border-radius:7px"><input id="mapQ" placeholder="Resaltar posición (ej. A150)" autocomplete="off"></div>' +
+        '<button class="btn sm" id="mapIr3D">' + ICONS.map + ' Abrir en Mapa 3D</button>' +
       '</div>' +
+      '<div class="rack-head"><h3 id="mapCalleTitle"></h3><span class="muted" id="mapCalleStats"></span></div>' +
       '<div id="mapContainer"></div>' +
       '<div class="rack-legend">' +
         '<span><span class="dot d-ok"></span> Libre</span>' +
@@ -4599,7 +4601,7 @@ RENDERERS.panel = function () {
         '<span><span class="dot d-sh"></span> Palet compartido (×N ítems)</span>' +
         '<span><span class="dot d-rv"></span> Revisar saldo</span>' +
         '<span>⚑ Con reserva activa</span>' +
-        '<span style="margin-left:auto">Piso: <b id="mapPisoInfo"></b></span>' +
+        '<span style="margin-left:auto">Color = nivel base (N1) · niveles superiores en el Mapa 3D · Piso: <b id="mapPisoInfo"></b></span>' +
       '</div>' +
     '</div>';
 
@@ -4613,6 +4615,18 @@ RENDERERS.panel = function () {
   $('#mapRack').onchange = e => { MAP_F.rack = e.target.value; renderRackMap(); };
   $('#mapEstado').onchange = e => { MAP_F.estado = e.target.value; renderRackMap(); };
   $('#mapQ').oninput = debounce(e => { MAP_F.q = e.target.value; renderRackMap(); }, 120);
+  $('#mapQ').addEventListener('keydown', ev => { if (ev.key === 'Enter') $('#mapIr3D').click(); });
+  $('#mapIr3D').onclick = () => {
+    const qn = normCoord($('#mapQ').value || '').trim().toUpperCase();
+    const p = mapa3dPosiciones().find(x => x.nivel === 1 && (x.coord === qn || x.coord.includes(qn)));
+    setView('mapa3d');
+    MAPA3D.estado.resaltado = p ? p.coord : null;
+    if (p) {
+      MAPA3D.deseado.target = { x: p.x, y: 1.2, z: p.z };
+      MAPA3D.deseado.radius = 22;
+      toast('Mapa 3D', 'ok', 'Posición ' + p.coord + ' centrada en el mapa.');
+    } else toast('Mapa 3D', 'ok', 'Vista general de Calles A y B.');
+  };
 };
 
 function kpiCardsHTML(k) {
@@ -4661,62 +4675,79 @@ function renderPanelCont() {
 }
 
 /* ---------- Mapa de racks ---------- */
+/* Mini-mapa cenital del Panel — MISMA geometría que el Mapa 3D (MAPA3D + mapa3dPosiciones):
+   el dibujo sale de los datos reales del depósito (plano de Excel: Calle A superior e
+   inferiores con paso central transversal + Calle B espalda con espalda), no de una grilla genérica. */
 function renderRackMap() {
-  const st = stockPorCoord();
   const cont = $('#mapContainer');
   if (!cont) return;
-  const q = normCoord(MAP_F.q).toUpperCase();
-  const match = coord => {
-    if (q && coord !== 'Piso' && !coord.includes(q)) return false;
-    if (q && coord === 'Piso' && !'PISO'.includes(q.toUpperCase())) return false;
-    return true;
+  const st = stockPorCoord();
+  const q = normCoord(MAP_F.q || '').trim().toUpperCase();
+  const match = coord => !q || (coord === 'Piso' ? 'PISO'.includes(q) : coord.includes(q));
+  const clase = p => p.estado === 'REVISAR' ? 'revisar' : p.estado === 'COMPARTIDO' ? 'compartida' : p.estado === 'OCUPADO' ? 'ocupada' : 'libre';
+  const pos1 = mapa3dPosiciones().filter(p => p.nivel === 1 && (MAP_F.rack === 'AB' || p.coord[0] === MAP_F.rack));
+  const stats = { ocupada: 0, compartida: 0, revisar: 0, libre: 0, res: 0 };
+  pos1.forEach(p => { const c = clase(p); if (c === 'compartida') { stats.compartida++; stats.ocupada++; } else stats[c]++; if (reservasDeCoord(p.coord).length) stats.res++; });
+  $('#mapCalleTitle').textContent = (MAP_F.rack === 'A' ? 'Calle A' : MAP_F.rack === 'B' ? 'Calle B' : 'Calle A + Calle B') + ' · vista cenital';
+  $('#mapCalleStats').innerHTML = stats.ocupada + ' ocupadas · ' + stats.compartida + ' compartidas · ' + stats.revisar + ' a revisar' + (stats.res ? ' · <b style="color:var(--warn)">⚑ ' + stats.res + ' con reserva</b>' : '') + ' · ' + stats.libre + ' libres';
+
+  /* zonas fijas del plano (coordenadas de mundo, idénticas a las del Mapa 3D) */
+  const paso = MAPA3D.paso;
+  const zSup = MAPA3D.filaZ.sup, zInf = MAPA3D.filaZ.inf, zB = MAPA3D.filaZ.b;
+  const minX = Math.min(...pos1.map(p => p.x)) - paso, maxX = Math.max(...pos1.map(p => p.x)) + paso;
+  const minZ = zSup - 3.1, maxZ = zB + 3.5;
+  const xPasoIzq = colX(19) + paso / 2 + 0.15, xPasoDer = colX(24) - paso / 2 - 0.15; /* columnas 20–23 sin posiciones: paso central */
+  const bw = paso * 0.82, bd = 0.95;
+  const COL = {
+    libre: { f: 'rgba(100,116,139,.30)', s: 'rgba(148,163,184,.55)' },
+    ocupada: { f: 'rgba(52,211,153,.78)', s: 'rgba(255,255,255,.55)' },
+    compartida: { f: 'rgba(251,191,36,.80)', s: 'rgba(255,255,255,.55)' },
+    revisar: { f: 'rgba(248,113,113,.80)', s: 'rgba(255,255,255,.55)' },
   };
-  let html = '';
-  for (const rack of ['A', 'B']) {
-    if (MAP_F.rack !== 'AB' && MAP_F.rack !== rack) continue;
-    let ocup = 0, comp = 0, rev = 0, res = 0;
-    let grid = '<div class="rack-grid"><div class="corner"></div>';
-    for (let t = 0; t < 10; t++) grid += '<div class="corner">' + pad2(t * 10) + '</div>';
-    for (let h = 0; h < 10; h++) {
-      grid += '<div class="rowhead">' + h + '00</div>';
-      for (let t = 0; t < 10; t++) {
-        const coord = rack + h + '' + t + '0';
-        const stock = st.get(coord) || 0;
-        const nItems = itemsActivos(coord).length;
-        const nRes = reservasDeCoord(coord).length;
-        let cls = stock < 0 ? 'revisar' : nItems > 1 ? 'compartida' : stock > 0 ? 'ocupada' : 'libre';
-        if (cls === 'ocupada') ocup++; else if (cls === 'compartida') { comp++; ocup++; } else if (cls === 'revisar') rev++;
-        if (nRes) res++;
-        let dim = '';
-        if (!match(coord)) dim = 'opacity:.18;';
-        else if (MAP_F.estado !== 'todos' && MAP_F.estado !== cls) dim = 'opacity:.18;';
-        const est = estadoPosicion(stock) === 'OCUPADO' && nItems > 1 ? 'PALET COMPARTIDO (' + nItems + ' ítems)' : estadoPosicion(stock);
-        grid += '<div class="cell ' + cls + '" data-coord="' + coord + '" style="' + dim + '" title="' + esc(coord + ' · ' + est + ' · ' + fmtInt(stock) + ' cajas' + (nRes ? ' · ' + nRes + ' reserva(s)' : '')) + '">' +
-          '<span class="c-coord">' + (h * 100 + t * 10) + '</span>' +
-          '<span class="c-qty">' + (stock !== 0 ? fmtInt(stock) : '·') + '</span>' +
-          (nItems > 1 && stock >= 0 ? '<span class="c-flag">×' + nItems + '</span>' : '') +
-          (stock < 0 ? '<span class="c-flag">!</span>' : '') +
-          (nRes ? '<span class="c-flag c-res">⚑' + nRes + '</span>' : '') +
-        '</div>';
-      }
-    }
-    grid += '</div>';
-    html += '<div class="rack-block"><div class="rack-head"><h3>Rack ' + rack + '</h3><span class="muted">' + ocup + ' ocupadas · ' + comp + ' compartidas' + (res ? ' · <b style="color:var(--warn)">⚑ ' + res + ' reservadas</b>' : '') + (rev ? ' · <b style="color:var(--danger)">' + rev + ' a revisar</b>' : '') + ' · ' + (100 - ocup - rev) + ' libres</span></div>' + grid + '</div>';
-  }
-  // Piso
+  let g = '<svg class="rm-svg" viewBox="' + (minX - 1.6) + ' ' + minZ + ' ' + (maxX - minX + 3.2) + ' ' + (maxZ - minZ) + '" role="img" aria-label="Mapa cenital del depósito">' +
+    '<style>.rm-cell{cursor:pointer}.rm-cell:hover rect{stroke:#f8fafc;stroke-width:.1}.rm-lab{font:600 .72px system-ui,sans-serif;fill:#94a3b8;letter-spacing:.06px}</style>' +
+    '<rect x="' + minX + '" y="' + (zSup + bd / 2 + 0.12) + '" width="' + (maxX - minX) + '" height="' + (zInf - bd / 2 - 0.12 - (zSup + bd / 2 + 0.12)) + '" fill="rgba(56,189,248,.06)"/>' +
+    '<text x="' + ((minX + maxX) / 2) + '" y="0" text-anchor="middle" class="rm-lab" style="font-size:.9px">PASILLO A · circulación</text>' +
+    '<rect x="' + xPasoIzq + '" y="' + (zInf - bd / 2 - 0.35) + '" width="' + (xPasoDer - xPasoIzq) + '" height="' + (zB + bd / 2 + 0.35 - (zInf - bd / 2 - 0.35)) + '" fill="rgba(250,204,21,.06)" stroke="rgba(250,204,21,.45)" stroke-dasharray=".35 .3" rx=".3"/>' +
+    '<text x="' + ((xPasoIzq + xPasoDer) / 2) + '" y="' + ((zInf + zB) / 2 + 0.3) + '" text-anchor="middle" class="rm-lab" style="font-size:.72px;fill:#eab308">PASO CENTRAL</text>' +
+    '<rect x="' + minX + '" y="' + (zB + bd / 2 + 0.1) + '" width="' + (maxX - minX) + '" height="1.4" fill="rgba(56,189,248,.06)"/>' +
+    '<text x="' + ((minX + maxX) / 2) + '" y="' + (zB + bd / 2 + 1.0) + '" text-anchor="middle" class="rm-lab" style="font-size:.9px">PASILLO B · circulación</text>' +
+    '<text x="' + (minX + 0.2) + '" y="' + (zSup - bd / 2 - 1.05) + '" class="rm-lab">CALLE A · Bloque Superior</text>' +
+    '<text x="' + (minX + 0.2) + '" y="' + (zInf - bd / 2 - 1.4) + '" class="rm-lab">CALLE A · Inferiores</text>' +
+    '<text x="' + (minX + 0.2) + '" y="' + (zB - bd / 2 - 0.75) + '" class="rm-lab">CALLE B</text>';
+  pos1.forEach(p => {
+    const c = clase(p);
+    const nItems = itemsActivos(p.coord).length;
+    const nRes = reservasDeCoord(p.coord).length;
+    const dim = (!match(p.coord) || (MAP_F.estado !== 'todos' && MAP_F.estado !== c)) ? 'opacity:.18;' : '';
+    let porNivel = '';
+    for (let l = 1; l <= p.niveles; l++) porNivel += (porNivel ? ' / ' : '') + 'N' + l + ' ' + fmtInt(stockNivel(p.coord, l));
+    const tip = p.coord + ' · ' + ({ OCUPADO: 'Ocupado', COMPARTIDO: 'Palet compartido', LIBRE: 'Libre', REVISAR: 'Revisar saldo' }[p.estado] || p.estado) + ' · niveles ' + p.niveles + ': ' + porNivel + (nItems > 1 ? ' · ' + nItems + ' ítems' : '') + (nRes ? ' · ⚑ ' + nRes + ' reserva(s)' : '') + ' · clic para el detalle';
+    g += '<g class="rm-cell" data-coord="' + p.coord + '" style="' + dim + '"><title>' + esc(tip) + '</title>' +
+      '<rect x="' + (p.x - bw / 2) + '" y="' + (p.z - bd / 2) + '" width="' + bw + '" height="' + bd + '" rx=".14" fill="' + COL[c].f + '" stroke="' + COL[c].s + '" stroke-width=".05"/>' +
+      (p.col % 5 === 0 ? '<text x="' + p.x + '" y="' + (p.z - bd / 2 - 0.22) + '" text-anchor="middle" style="font:500 .55px system-ui,sans-serif;fill:#64748b">' + p.coord.slice(1) + '</text>' : '') +
+      (p.estado === 'REVISAR'
+        ? '<text x="' + p.x + '" y="' + (p.z + 0.22) + '" text-anchor="middle" style="font:700 .62px system-ui,sans-serif;fill:#fef2f2">!</text>'
+        : nItems > 1 && p.stock > 0
+          ? '<text x="' + p.x + '" y="' + (p.z + 0.22) + '" text-anchor="middle" style="font:700 .58px system-ui,sans-serif;fill:#78350f">×' + nItems + '</text>'
+          : p.stock !== 0
+            ? '<text x="' + p.x + '" y="' + (p.z + 0.22) + '" text-anchor="middle" style="font:600 .58px system-ui,sans-serif;fill:' + (c === 'libre' ? '#cbd5e1' : '#ecfdf5') + '">' + fmtInt(Math.abs(p.stock)) + '</text>' : '') +
+      (nRes ? '<text x="' + (p.x - bw / 2 + 0.14) + '" y="' + (p.z + bd / 2 - 0.1) + '" style="font:700 .55px system-ui,sans-serif;fill:#fda4af">⚑' + nRes + '</text>' : '') +
+      '</g>';
+  });
   const pisoStock = st.get('Piso') || 0;
   const pisoItems = itemsActivos('Piso');
-  const pisoDim = (!match('Piso') || (MAP_F.estado !== 'todos' && MAP_F.estado !== (pisoStock > 0 ? 'ocupada' : 'libre'))) ? 'opacity:.18;' : '';
-  if (MAP_F.rack === 'AB') {
-    html += '<div class="rack-block"><div class="rack-head"><h3>Zona especial</h3><span class="muted">Piso</span></div>' +
-      '<div class="rack-grid" style="grid-template-columns:1fr"><div class="cell piso ' + (pisoStock < 0 ? 'revisar' : pisoStock > 0 ? 'ocupada' : 'libre') + '" data-coord="Piso" style="' + pisoDim + '">' +
+  const pisoCls = pisoStock < 0 ? 'revisar' : pisoItems.length > 1 ? 'compartida' : pisoStock > 0 ? 'ocupada' : 'libre';
+  const pisoDim = (!match('Piso') || (MAP_F.estado !== 'todos' && MAP_F.estado !== pisoCls)) ? 'opacity:.18;' : '';
+  cont.innerHTML = g + '</svg>' +
+    (MAP_F.rack === 'AB' ? '<div class="rack-block" style="margin-top:12px"><div class="rack-head"><h3>Zona especial</h3><span class="muted">Piso</span></div>' +
+      '<div class="rack-grid" style="grid-template-columns:1fr"><div class="cell piso ' + pisoCls + '" data-coord="Piso" style="' + pisoDim + '">' +
       '<span class="c-coord">PISO</span><span class="c-qty">' + (pisoStock !== 0 ? fmtInt(pisoStock) + ' cajas' : 'Libre') + '</span>' +
       (pisoItems.length > 1 ? '<span class="c-flag">×' + pisoItems.length + '</span>' : '') +
       (reservasDeCoord('Piso').length ? '<span class="c-flag c-res">⚑' + reservasDeCoord('Piso').length + '</span>' : '') +
-      '</div></div></div>';
-  }
-  cont.innerHTML = html;
+      '</div></div></div>' : '');
   $('#mapPisoInfo').textContent = fmtInt(pisoStock) + ' cajas';
+  $$('.rm-cell', cont).forEach(c => c.onclick = () => openPosicionModal(c.dataset.coord));
   $$('.cell', cont).forEach(c => c.onclick = () => openPosicionModal(c.dataset.coord));
 }
 
@@ -4944,7 +4975,7 @@ const MAPA3D = {
 const M3_COLORES = {
   OCUPADO: { top: '#34d399', left: '#059669', right: '#047857', stroke: 'rgba(255,255,255,.45)', alpha: .96 },
   COMPARTIDO: { top: '#fbbf24', left: '#d97706', right: '#b45309', stroke: 'rgba(255,255,255,.5)', alpha: .96 },
-  LIBRE: { top: '#64748b', left: '#475569', right: '#334155', stroke: 'rgba(203,213,225,.35)', alpha: .42 },
+  LIBRE: { top: '#64748b', left: '#475569', right: '#334155', stroke: 'rgba(203,213,225,.45)', alpha: .52 },
   REVISAR: { top: '#f87171', left: '#dc2626', right: '#b91c1c', stroke: 'rgba(255,255,255,.5)', alpha: .96 },
   SEL: { top: '#7dd3fc', left: '#0284c7', right: '#0369a1', stroke: '#ffffff', alpha: 1 },
 };
@@ -4957,7 +4988,12 @@ function mapa3dCoordenadasBloque(b) {
 }
 function mapa3dTodasCoords() { return MAPA3D.bloques.flatMap(b => mapa3dCoordenadasBloque(b)); }
 function colX(col) { return (col - 22.5) * MAPA3D.paso; }
-function nivelesDe(coord) { return Math.max(1, Math.min(6, Number((DB.niveles || {})[normCoord(coord)]) || 1)); }
+function nivelesDe(coord) {
+  const m = Number((DB.niveles || {})[normCoord(coord)]);
+  if (Number.isFinite(m) && m >= 1) return Math.max(1, Math.min(6, m));
+  const base = Number(DB.nivelesBase);
+  return Number.isFinite(base) && base >= 1 ? Math.max(1, Math.min(6, base)) : 4; /* sin mapeo: 4 niveles visibles (estructura vacía incluida) */
+}
 function setNivelesCoord(coord, n) {
   const c = normCoord(coord), v = Math.max(1, Math.min(6, Number(n) || 1));
   if (!DB.niveles) DB.niveles = {};
@@ -5029,17 +5065,21 @@ function openMapearAlturasModal() {
       '</div></div>';
   };
   const resumenTxt = () => {
-    let fisicos = 0, con = 0;
+    let fisicos = 0, mapeadas = 0;
     const total = mapa3dTodasCoords().length;
-    MAPA3D.bloques.forEach(b => mapa3dCoordenadasBloque(b).forEach(c => { const n = nivelesDe(c); fisicos += n; if (n > 1) con++; }));
-    return con + ' de ' + total + ' posiciones con más de un nivel · ' + fisicos + ' niveles físicos mapeados';
+    const baseN = Math.max(1, Math.min(6, Number(DB.nivelesBase) || 4));
+    MAPA3D.bloques.forEach(b => mapa3dCoordenadasBloque(b).forEach(c => { fisicos += nivelesDe(c); if ((DB.niveles || {})[c]) mapeadas++; }));
+    return mapeadas + ' de ' + total + ' posiciones con mapeo propio · ' + fisicos + ' niveles físicos · ' + baseN + ' niveles por defecto para el resto';
   };
   openModal({
     perm: 'abm',
     title: 'Mapear alturas · Calles A y B',
     sub: 'Define cuántos niveles físicos tiene cada posición. El Mapa 3D y el campo «Nivel» de los movimientos se actualizan al instante; los cambios se guardan y sincronizan con Drive.',
     body:
-      '<div class="alert info">' + ICONS.alert + '<div>Aplicá primero los niveles a un bloque completo (ej. Bloque Superior: 3) y después ajustá coordenadas individuales si alguna difiere. El nivel 1 es la base.</div></div>' +
+      '<div class="alert info">' + ICONS.alert + '<div>Aplicá primero los niveles a un bloque completo (ej. Bloque Superior: 3) y después ajustá coordenadas individuales si alguna difiere. El nivel 1 es la base. Las posiciones sin mapeo usan el <b>nivel por defecto</b>.</div></div>' +
+      '<div class="form-grid" style="margin-top:6px">' +
+        fieldHTML('ma-base', 'Niveles por defecto (posiciones sin mapeo)', '<select id="ma-base">' + [1, 2, 3, 4, 5, 6].map(n => '<option value="' + n + '"' + (n === Math.max(1, Math.min(6, Number(DB.nivelesBase) || 4)) ? ' selected' : '') + '>' + n + '</option>').join('') + '</select>') +
+      '</div>' +
       MAPA3D.bloques.map(filaBloque).join('') +
       '<div class="form-grid" style="margin-top:6px">' +
         fieldHTML('ma-coord', 'Ajuste individual por coordenada', '<select id="ma-coord">' + mapa3dTodasCoords().map(c => '<option>' + c + '</option>').join('') + '</select>') +
@@ -5064,6 +5104,14 @@ function openMapearAlturasModal() {
         toast('Alturas aplicadas', 'ok', b.nombre + ': ' + n + ' nivel(es) para ' + cant + ' posiciones.');
       };
       $$('#modalBox [data-mab]').forEach(btn => btn.onclick = () => aplicarBloque(btn.dataset.mab));
+      $('#ma-base').onchange = () => {
+        const n = Math.max(1, Math.min(6, Number($('#ma-base').value) || 4));
+        DB.nivelesBase = n;
+        dataChanged();
+        auditar('Mapeo de alturas', 'Niveles por defecto (posiciones sin mapeo) → ' + n);
+        refrescar();
+        toast('Niveles por defecto', 'ok', 'Las posiciones sin mapeo muestran ' + n + ' nivel(es).');
+      };
       $('#maAplicarCoord').onclick = () => {
         const c = $('#ma-coord').value;
         const n = Math.max(1, Math.min(6, Number($('#ma-ncoord').value) || 1));
@@ -5106,7 +5154,7 @@ RENDERERS.mapa3d = function () {
       '</span>' +
       '<span class="filter-count" id="m3Resumen">' + fmtInt(mapa3dTodasCoords().length) + ' posiciones · ' + fmtInt(fisicos) + ' niveles · ' + fmtInt(ocupadas) + ' con stock</span>' +
     '</div>' +
-    '<div id="m3Feedback" style="font-size:12px;color:var(--text-3);margin:0 0 10px">Arrastrá para rotar (suave) · rueda o botones para zoom · pasá el mouse sobre una posición para ver sus datos · clic para el detalle por nivel.</div>' +
+    '<div id="m3Feedback" style="font-size:12px;color:var(--text-3);margin:0 0 10px">Arrastrá para rotar · Shift+arrastrar, botón derecho o dos dedos para moverte a lo ancho (también flechas/WASD) · rueda o ± para zoom · mouse sobre una posición = sus datos · clic = detalle por nivel.</div>' +
     '<div class="mapa3d-grid">' +
       '<div class="mapa3d-wrap" id="m3Wrap"><canvas id="m3Canvas"></canvas><div class="mapa3d-hud" id="m3Hud" style="display:none"></div>' +
         '<div class="mapa3d-zoom"><button id="m3Zin" title="Acercar">+</button><button id="m3Zout" title="Alejar">−</button><button id="m3Zreset" class="m3-wide" title="Restablecer vista">Reset</button></div>' +
@@ -5130,7 +5178,7 @@ RENDERERS.mapa3d = function () {
           '<div><div class="lbl">Niveles con stock</div><div class="val">' + fmtInt(ocupadas) + '</div></div>' +
           '<div><div class="lbl">Niveles libres</div><div class="val">' + fmtInt(fisicos - ocupadas) + '</div></div>' +
         '</div>' +
-        '<p style="font-size:11.5px;color:var(--text-3);margin-top:10px;line-height:1.5">Calle A y Calle B con alturas mapeables («Mapear alturas», solo administrador); los movimientos registran el nivel con el campo «Nivel» del formulario.</p>';
+        '<p style="font-size:11.5px;color:var(--text-3);margin-top:10px;line-height:1.5">Calle A y Calle B con alturas mapeables («Mapear alturas», solo administrador): toda posición sin mapeo muestra 4 niveles por defecto (configurable en el modal); los movimientos registran el nivel con el campo «Nivel» del formulario.</p>';
       return;
     }
     const n = item.niveles;
@@ -5305,20 +5353,35 @@ RENDERERS.mapa3d = function () {
     hud.style.display = 'none';
     const dx = ev.clientX - prev.x, dy = ev.clientY - prev.y;
     prev = { x: ev.clientX, y: ev.clientY };
+    if (panMode) { panea(dx, dy); return; }
     de.theta -= dx * 0.0055;
     de.phi = Math.max(0.12, Math.min(Math.PI / 2 - 0.05, de.phi - dy * 0.005));
   };
   const onUp = ev => {
     if (!dragging) return;
     dragging = false;
+    if (panMode) { panMode = false; return; }
     if (Math.hypot(ev.clientX - downPos.x, ev.clientY - downPos.y) < 6) pick(ev.clientX, ev.clientY);
+  };
+  let panMode = false;
+  /* pan: desplaza el objetivo de la cámara (el contenido acompaña el arrastre) */
+  const panea = (dxp, dyp) => {
+    const rect = canvas.getBoundingClientRect();
+    const escala = Math.min(rect.width, rect.height) * 0.92 / Math.max(e.radius, 12);
+    const ct = Math.cos(e.theta), st = Math.sin(e.theta);
+    de.target = {
+      x: Math.max(-34, Math.min(34, de.target.x - ct * dxp / escala - st * dyp / (escala * 0.52))),
+      y: de.target.y,
+      z: Math.max(-13, Math.min(26, de.target.z + st * dxp / escala - ct * dyp / (escala * 0.52))),
+    };
   };
   if (MAPA3D._winMove) window.removeEventListener('mousemove', MAPA3D._winMove);
   if (MAPA3D._winUp) window.removeEventListener('mouseup', MAPA3D._winUp);
   MAPA3D._winMove = onMove; MAPA3D._winUp = onUp;
   window.addEventListener('mousemove', onMove);
   window.addEventListener('mouseup', onUp);
-  canvas.addEventListener('mousedown', ev => { dragging = true; downPos = { x: ev.clientX, y: ev.clientY }; prev = { x: ev.clientX, y: ev.clientY }; });
+  canvas.addEventListener('mousedown', ev => { panMode = ev.button === 1 || ev.button === 2 || ev.shiftKey || ev.ctrlKey; dragging = true; downPos = { x: ev.clientX, y: ev.clientY }; prev = { x: ev.clientX, y: ev.clientY }; });
+  canvas.addEventListener('contextmenu', ev => ev.preventDefault());
   /* hover: HUD con datos de la posición bajo el cursor (sin seleccionar) */
   canvas.addEventListener('mousemove', ev => {
     if (dragging) return;
@@ -5334,21 +5397,49 @@ RENDERERS.mapa3d = function () {
   });
   canvas.addEventListener('mouseleave', () => { hud.style.display = 'none'; canvas.style.cursor = ''; });
   canvas.addEventListener('wheel', ev => { ev.preventDefault(); de.radius = Math.max(14, Math.min(80, de.radius + ev.deltaY * 0.02)); }, { passive: false });
+  let pinch = null;
   canvas.addEventListener('touchstart', ev => {
-    if (ev.touches.length === 1) { dragging = true; const t = ev.touches[0]; downPos = { x: t.clientX, y: t.clientY }; prev = { x: t.clientX, y: t.clientY }; }
+    if (ev.touches.length === 1) { dragging = true; panMode = false; const t = ev.touches[0]; downPos = { x: t.clientX, y: t.clientY }; prev = { x: t.clientX, y: t.clientY }; }
+    else if (ev.touches.length === 2) { dragging = true; panMode = true; pinch = null; }
   }, { passive: true });
   canvas.addEventListener('touchmove', ev => {
-    if (!dragging || ev.touches.length !== 1) return;
-    const t = ev.touches[0], dx = t.clientX - prev.x, dy = t.clientY - prev.y;
-    prev = { x: t.clientX, y: t.clientY };
-    de.theta -= dx * 0.006;
-    de.phi = Math.max(0.12, Math.min(Math.PI / 2 - 0.05, de.phi - dy * 0.0055));
+    if (!dragging) return;
+    if (ev.touches.length === 1 && !panMode) {
+      const t = ev.touches[0], dx = t.clientX - prev.x, dy = t.clientY - prev.y;
+      prev = { x: t.clientX, y: t.clientY };
+      de.theta -= dx * 0.006;
+      de.phi = Math.max(0.12, Math.min(Math.PI / 2 - 0.05, de.phi - dy * 0.0055));
+    } else if (ev.touches.length === 2) {
+      const a = ev.touches[0], b2 = ev.touches[1];
+      const d = Math.hypot(a.clientX - b2.clientX, a.clientY - b2.clientY);
+      const mid = { x: (a.clientX + b2.clientX) / 2, y: (a.clientY + b2.clientY) / 2 };
+      if (pinch) {
+        if (pinch.d > 0) de.radius = Math.max(14, Math.min(80, de.radius * pinch.d / d));
+        panea(mid.x - pinch.mid.x, mid.y - pinch.mid.y);
+      }
+      pinch = { d, mid };
+    }
   }, { passive: true });
   canvas.addEventListener('touchend', ev => {
     if (!dragging) return;
-    dragging = false;
-    const t = ev.changedTouches[0];
-    if (t && Math.hypot(t.clientX - downPos.x, t.clientY - downPos.y) < 10) pick(t.clientX, t.clientY);
+    if (ev.touches.length === 0) {
+      dragging = false; panMode = false; pinch = null;
+      const t = ev.changedTouches[0];
+      if (t && Math.hypot(t.clientX - downPos.x, t.clientY - downPos.y) < 10) pick(t.clientX, t.clientY);
+    } else if (ev.touches.length === 1) { pinch = null; const t = ev.touches[0]; prev = { x: t.clientX, y: t.clientY }; }
+  });
+  /* teclado: flechas / WASD desplazan la cámara a lo ancho (Shift = paso largo) */
+  window.addEventListener('keydown', ev => {
+    if (!canvas.isConnected || !$('#view-mapa3d').classList.contains('active')) return;
+    const t = ev.target;
+    if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+    const dir = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1], a: [-1, 0], d: [1, 0], w: [0, -1], s: [0, 1] }[ev.key.toLowerCase()];
+    if (!dir) return;
+    ev.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const escala = Math.min(rect.width, rect.height) * 0.92 / Math.max(e.radius, 12);
+    const paso = (ev.shiftKey ? 6 : 2.5) * escala;
+    panea(-dir[0] * paso, -dir[1] * paso);
   });
   /* ---------- búsqueda, filtros, presets y zoom ---------- */
   const irACoordenada = raw => {
