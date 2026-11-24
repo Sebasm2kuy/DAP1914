@@ -610,6 +610,21 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 .print-tbl { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 12px; }
 .print-tbl th, .print-tbl td { border: 1px solid #000; padding: 5px 8px; text-align: left; }
 .print-tbl th { background: #eee; font-size: 11px; text-transform: uppercase; }
+/* Impresión «Posiciones ocupadas» de Stock Actual: columnas compactas según su
+   contenido (coordenada, stock, N.º stock, cliente, fecha) y Producto con el
+   mayor ancho para evitar cortes de línea innecesarios, sin desbordes de hoja
+   (vertical ni horizontal). Los anchos son sugerencias: el layout automático
+   ensancha una columna si el contenido real lo exige. */
+.ocup-tbl th, .ocup-tbl td { vertical-align: top; }
+.ocup-tbl .oc-coord { width: 7.5%; }
+.ocup-tbl .oc-stock { width: 8%; }
+.ocup-tbl .oc-nro { width: 10%; }
+.ocup-tbl .oc-cli { width: 12%; }
+.ocup-tbl .oc-prod { width: 30%; }
+.ocup-tbl .oc-med { width: 10.5%; }
+.ocup-tbl .oc-fecha { width: 9.5%; }
+.ocup-tbl .oc-obs { width: 12.5%; }
+.ocup-tbl td.oc-coord, .ocup-tbl td.oc-fecha { white-space: nowrap; }
 .print-head { display: flex; align-items: center; gap: 12px; border-bottom: 2.5px solid #000; padding-bottom: 8px; margin-bottom: 6px; }
 .print-head .print-logo { width: 42px; height: 42px; border-radius: 9px; background: #0b5cad; color: #fff; display: grid; place-items: center; }
 .print-title { font-size: 15px; font-weight: 900; }
@@ -4825,13 +4840,30 @@ function imprimirStockOcupados() {
   if (STK_F.rack !== 'todos') filtros.push('rack ' + STK_F.rack);
   if (q) filtros.push('búsqueda «' + STK_F.q.trim() + '»');
   const td = (v, cls) => '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + esc(v == null || v === '' ? '—' : v) + '</td>';
-  const filas = rows.map(r =>
-    '<tr>' + td(r.coord, 'mono') + '<td class="num"><b>' + fmtInt(r.stock) + '</b></td>' +
-    td(Array.from(new Set(r.items.map(i => i.nroStock))).join(' · ') || (r.ultIng ? String(r.ultIng.nroStock) : ''), 'mono') +
-    td(Array.from(new Set(r.items.map(i => i.cliente))).join(' · ')) +
-    td(Array.from(new Set(r.items.map(i => i.producto))).join(' · ')) +
-    td(Array.from(new Set(r.items.map(i => i.medida))).join(' · ')) +
-    td(r.items.length > 1 ? 'PALET COMPARTIDO (' + r.items.length + ' ítems)' : ((r.ultIng && normalizarRefDoc(r.ultIng.refDoc)) || '')) +
+  /* Fecha de ingreso de la posición (último movimiento «Ingreso» sobre ella) y
+     detalle impreso sin el literal redundante «Ingreso»: ese texto es el refDoc
+     por defecto de todo ingreso y no aporta información. En la impresión solo
+     se muestran observaciones reales; si ninguna fila tiene una, la columna se
+     omite. La tabla en pantalla no cambia. */
+  const dataRows = rows.map(r => ({
+    coord: r.coord, stock: r.stock,
+    nro: Array.from(new Set(r.items.map(i => i.nroStock))).join(' · ') || (r.ultIng ? String(r.ultIng.nroStock) : ''),
+    cli: Array.from(new Set(r.items.map(i => i.cliente))).join(' · '),
+    prod: Array.from(new Set(r.items.map(i => i.producto))).join(' · '),
+    med: Array.from(new Set(r.items.map(i => i.medida))).join(' · '),
+    fecha: r.ultIng && r.ultIng.fecha ? fmtDate(r.ultIng.fecha) : '',
+    det: r.items.length > 1 ? 'PALET COMPARTIDO (' + r.items.length + ' ítems)' : ((r.ultIng && normalizarRefDoc(r.ultIng.refDoc)) || ''),
+  }));
+  const detImpreso = d => (d.det && d.det.toLowerCase() !== 'ingreso') ? d.det : '';
+  const conObs = dataRows.some(d => detImpreso(d) !== '');
+  const filas = dataRows.map(d =>
+    '<tr>' + td(d.coord, 'mono oc-coord') + '<td class="num oc-stock"><b>' + fmtInt(d.stock) + '</b></td>' +
+    td(d.nro, 'mono oc-nro') +
+    td(d.cli, 'oc-cli') +
+    td(d.prod, 'oc-prod') +
+    td(d.med, 'oc-med') +
+    td(d.fecha, 'mono oc-fecha') +
+    (conObs ? td(detImpreso(d), 'oc-obs') : '') +
     '</tr>').join('');
   imprimirHTML('Stock actual · Posiciones ocupadas',
     '<div class="remito">' +
@@ -4841,8 +4873,8 @@ function imprimirStockOcupados() {
         '<th>Posiciones ocupadas</th><th>Total de cajas</th><th>Palets compartidos</th></tr>' +
         '<tr><td class="num"><b>' + fmtInt(rows.length) + '</b></td><td class="num"><b>' + fmtInt(totalCajas) + '</b></td><td class="num">' + fmtInt(compartidas) + '</td></tr></table>' +
       '<div class="remito-sub">DETALLE POR POSICIÓN (' + rows.length + ')</div>' +
-      '<table class="print-tbl"><tr>' +
-        '<th>Coordenada</th><th>Stock actual (cajas)</th><th>N.º stock vigente</th><th>Cliente</th><th>Producto</th><th>Medida / Peso</th><th>Observaciones / Detalle</th>' +
+      '<table class="print-tbl ocup-tbl"><tr>' +
+        '<th class="oc-coord">Coordenada</th><th class="oc-stock">Stock actual (cajas)</th><th class="oc-nro">N.º stock vigente</th><th class="oc-cli">Cliente</th><th class="oc-prod">Producto</th><th class="oc-med">Medida / Peso</th><th class="oc-fecha">Fecha ingreso</th>' + (conObs ? '<th class="oc-obs">Observaciones / Detalle</th>' : '') +
       '</tr>' + filas + '</table>' +
     '</div>');
 }
