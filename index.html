@@ -4262,6 +4262,7 @@ const BOTONES_PERM = {
   palNuevo: 'pallets', resNuevo: 'reservas',
   repCsv: 'imprimir', repPrint: 'imprimir', repMail: 'correo',
   audCsv: 'imprimir', audClear: 'admin', stkConteo: 'mov',
+  dcGo: 'drive', dcSave: 'drive', dcBackup: 'drive', dcOpen: 'drive',
   btnImport: 'config', btnExportMenu: 'imprimir', btnSettings: 'config', btnDrive: 'drive_leer',
 };
 function aplicarPermisosUI() {
@@ -8925,7 +8926,15 @@ function bindGoogleOnce() {
 function drivePanelCardHTML() {
   const cfg = gCfg();
   const connected = gConnected();
+  /* Permisos: «Guardar», «Respaldar» y «Sincronización» son acciones de escritura
+     sobre Drive (permiso «drive»); el Invitado · consulta y otros usuarios de solo
+     lectura ven únicamente el estado de conexión y sincronización. */
+  const puedeDrive = typeof puede === 'function' && puede('drive');
   if (!connected) {
+    if (!puedeDrive) {
+      return '<div class="card sync-card" id="driveCard">' + ICONS.drive +
+        '<div class="sync-txt"><b>Respaldo en Google Drive</b><span>Solo lectura: la app se actualiza automáticamente con la última versión guardada en Drive al iniciar sesión (cuenta del depósito ' + esc(cfg.hint || GOOGLE_HINT_DEFAULT) + '). El guardado, los respaldos y la configuración de sincronización los realiza el administrador.</span></div></div>';
+    }
     return '<div class="card sync-card" id="driveCard">' + ICONS.drive +
       '<div class="sync-txt"><b>Respaldo en Google Drive</b><span>La operación es local e instantánea; sincronizá con la cuenta del depósito (' + esc(cfg.hint || GOOGLE_HINT_DEFAULT) + ') para respaldar y continuar en otro dispositivo.</span></div>' +
       '<div class="head-actions"><button class="btn" id="dcGo">' + ICONS.gear + ' Conectar Drive</button></div></div>';
@@ -8934,11 +8943,13 @@ function drivePanelCardHTML() {
   return '<div class="card sync-card ok" id="driveCard">' + ICONS.drive +
     '<div class="sync-txt"><b>Drive conectado' + (wrongAcc ? ' <span class="badge warn">' + esc(GState.email) + '</span>' : ' · ' + esc(GState.email)) + '</b>' +
     '<span>Última sincronización: <b id="dcLast">' + (cfg.lastSyncAt ? esc(fmtDateTime(cfg.lastSyncAt)) : 'todavía no guardaste en Drive') + '</b>' + (cfg.autoSync ? ' · auto-sync activado' : '') + '</span></div>' +
-    '<div class="head-actions">' +
-      '<button class="btn sm" id="dcSave">' + ICONS.upload + ' Guardar</button>' +
-      '<button class="btn sm" id="dcBackup">' + ICONS.db + ' Respaldar</button>' +
-      '<button class="btn sm" id="dcOpen">' + ICONS.gear + ' Sincronización</button>' +
-    '</div></div>';
+    (puedeDrive ?
+      '<div class="head-actions">' +
+        '<button class="btn sm" id="dcSave">' + ICONS.upload + ' Guardar</button>' +
+        '<button class="btn sm" id="dcBackup">' + ICONS.db + ' Respaldar</button>' +
+        '<button class="btn sm" id="dcOpen">' + ICONS.gear + ' Sincronización</button>' +
+      '</div>' : '') +
+    '</div>';
 }
 function bindDrivePanelCard() {
   const go = $('#dcGo'); if (go) go.onclick = () => gConfigured() ? openDriveModal() : openSettingsModal();
