@@ -447,7 +447,7 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 .quick-rows { display: flex; flex-direction: column; gap: 8px; }
 .qrow { display: grid; grid-template-columns: 1.2fr 1fr auto auto; gap: 8px; align-items: center; }
 .qrow select, .qrow input { width: 100%; border: 1px solid var(--border-2); border-radius: 7px; background: var(--surface-2); color: var(--text); font: inherit; font-size: 13px; padding: 7px 9px; }
-.qrow .warn-flag { color: var(--warn); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.qrow .warn-flag { color: var(--warn); font-size: 11px; font-weight: 700; white-space: normal; line-height: 1.25; max-width: 300px; }
 .range-tool { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; background: var(--surface-2); border: 1px dashed var(--border-2); border-radius: 10px; padding: 10px 12px; }
 .range-tool .field { flex: 1; min-width: 130px; }
 
@@ -4876,7 +4876,7 @@ RENDERERS.stock = function (patch) {
         html += '<tr class="detail-row"><td colspan="8"><div style="padding:6px 10px">' +
           '<table class="item-table"><thead><tr><th>N.º stock</th><th>Cliente</th><th>Producto</th><th>Medida</th><th class="num">Saldo (cajas)</th><th>Estado</th><th></th></tr></thead><tbody>' +
           r.items.map(i => '<tr><td class="mono">' + esc(i.nroStock) + '</td><td>' + esc(i.cliente) + '</td><td class="strong">' + esc(i.producto) + '</td><td>' + esc(i.medida) + '</td><td class="num strong">' + fmtInt(i.stock) + '</td><td>' + badgeEstadoLinea(i.stock) + '</td>' +
-            '<td><div class="row-actions"><button class="btn sm" data-salida="' + esc(i.key) + '">' + ICONS.out + ' Salida</button><button class="btn sm" data-traslado="' + esc(i.key) + '">' + ICONS.swap + ' Traslado</button></div></td></tr>').join('') +
+            '<td><div class="row-actions"><button class="btn sm" data-agregarpos="' + esc(i.key) + '">' + ICONS.plus + ' Agregar SKU</button><button class="btn sm" data-salida="' + esc(i.key) + '">' + ICONS.out + ' Salida</button><button class="btn sm" data-traslado="' + esc(i.key) + '">' + ICONS.swap + ' Traslado</button></div></td></tr>').join('') +
           '</tbody></table></div></td></tr>';
       }
     }
@@ -4894,6 +4894,7 @@ RENDERERS.stock = function (patch) {
       STK_F.expanded[c] = !STK_F.expanded[c];
       updateStockTbl();
     });
+    $$('#stockTbl [data-agregarpos]').forEach(b => b.onclick = () => { const l = lineaByKey(b.dataset.agregarpos); if (l) openMovModal(null, Object.assign({ agregar: true }, cabeceraDePosicion(l.coordenada, l)), 'Ingreso'); });
     $$('#stockTbl [data-salida]').forEach(b => b.onclick = () => openMovModal(null, lineaByKey(b.dataset.salida), 'Egreso'));
     $$('#stockTbl [data-traslado]').forEach(b => b.onclick = () => openTrasladoModal(lineaByKey(b.dataset.traslado)));
   }
@@ -5604,6 +5605,7 @@ RENDERERS.movs = function (patch) {
           (esSebastianORaul() ? '<button class="icon-btn" data-etiqueta="' + esc(m.id) + '" title="Reimprimir etiqueta de pallet">' + ICONS.pal + '</button>' : '') +
           '<button class="icon-btn" data-mail="' + esc(m.id) + '" title="Enviar comprobante por correo (Gmail)">' + ICONS.mail + '</button>' +
           (puede('mov') ? '<button class="icon-btn" data-edit="' + esc(m.id) + '" title="Editar">' + ICONS.edit + '</button>' : '') +
+          (puede('mov') && !anulado ? '<button class="icon-btn" data-agregar="' + esc(m.id) + '" title="Agregar SKU / caja a esta posición">' + ICONS.plus + '</button>' : '') +
           (puede('mov') && !anulado ? '<button class="icon-btn" data-anular="' + esc(m.id) + '" title="Anular con ajuste de reversa">' + ICONS.ban + '</button>' : '') +
           (puede('mov') ? '<button class="icon-btn danger" data-del="' + esc(m.id) + '" title="Eliminar">' + ICONS.trash + '</button>' : '') +
         '</div></td></tr>';
@@ -5615,6 +5617,10 @@ RENDERERS.movs = function (patch) {
     $$('#movsTbl [data-mail]').forEach(b => b.onclick = () => emailComprobanteMov(DB.movimientos.find(x => x.id === b.dataset.mail)));
     $$('#movsTbl [data-etiqueta]').forEach(b => b.onclick = () => imprimirEtiquetaPallet(DB.movimientos.find(x => x.id === b.dataset.etiqueta)));
     $$('#movsTbl [data-edit]').forEach(b => b.onclick = () => openMovModal(DB.movimientos.find(x => x.id === b.dataset.edit)));
+    $$('#movsTbl [data-agregar]').forEach(b => b.onclick = () => {
+      const mv = DB.movimientos.find(x => x.id === b.dataset.agregar);
+      if (mv) openMovModal(null, Object.assign({ agregar: true }, cabeceraDePosicion(mv.coordenada, mv)), 'Ingreso');
+    });
     $$('#movsTbl [data-anular]').forEach(b => b.onclick = () => openAnularModal(DB.movimientos.find(x => x.id === b.dataset.anular)));
     $$('#movsTbl [data-del]').forEach(b => b.onclick = async () => {
       if (!puede('mov')) { toast('Tu usuario no tiene permiso para eliminar movimientos', 'warn'); return; }
@@ -6355,6 +6361,51 @@ function formDataLists(dl) {
     datalistHTML('dl-prod', dl.productos) + datalistHTML('dl-med', dl.medidas) + datalistHTML('dl-ref', ['Ingreso', 'Salida'].concat(dl.refs));
 }
 
+/* ---------- Cabecera heredada en la sesión y cabecera de una posición ---------- */
+/* Última cabecera usada en esta sesión (Cliente, N.º stock, Contenedor, DUA y
+   Ref./documento): se recuerda al registrar un movimiento o una carga rápida y
+   se precarga en el próximo formulario, manteniendo Fecha actual e Ingreso. */
+function cabeceraSesion() {
+  try { const s = JSON.parse(sessionStorage.getItem('wms-df-cabecera-v1')); return s && typeof s === 'object' ? s : {}; } catch (e) { return {}; }
+}
+function recordarCabecera(c) {
+  const s = cabeceraSesion();
+  ['cliente', 'nroStock', 'contenedor', 'dua', 'refDoc'].forEach(k => { s[k] = c[k] || ''; });
+  try { sessionStorage.setItem('wms-df-cabecera-v1', JSON.stringify(s)); } catch (e) { /* sin almacenamiento de sesión */ }
+}
+/* Cabecera real de una posición: la toma del último ingreso activo de esa
+   partida (o, si no se indica partida, del ingreso más reciente de la
+   coordenada) para precargarla al agregar otro SKU / cajas al mismo pallet
+   sin reescribir la cabecera. */
+function cabeceraDePosicion(coord, partida) {
+  const cands = DB.movimientos.filter(m => !m.anulado && normCoord(m.coordenada) === normCoord(coord) && (impactoDe(m) || 0) > 0);
+  let origen = null;
+  if (partida && partida.producto) {
+    const kn = normKey(partida.producto), mn = normKey(partida.medida || '0');
+    origen = cands.find(m => normKey(m.producto) === kn && normKey(m.medida || '0') === mn &&
+      String(m.nroStock ?? '') === String(partida.nroStock ?? '') && (m.cliente || '') === (partida.cliente || ''));
+    if (!origen) origen = cands.find(m => normKey(m.producto) === kn && normKey(m.medida || '0') === mn);
+  }
+  if (!origen) origen = cands[cands.length - 1] || null;
+  if (!origen) return { coordenada: coord };
+  return {
+    coordenada: coord,
+    nivel: Number(origen.nivel) || 1,
+    cliente: origen.cliente || '',
+    nroStock: String(origen.nroStock ?? ''),
+    contenedor: (origen.contenedor && origen.contenedor !== '0') ? origen.contenedor : '',
+    dua: origen.dua || '',
+    fecha: origen.fecha || todayISO(),
+    refDoc: normalizarRefDoc(origen.refDoc) || 'Ingreso',
+  };
+}
+function contenidoPosicionHTML(coord) {
+  const items = itemsActivos(coord);
+  if (!items.length) return '<div class="alert info">' + ICONS.alert + '<div><b>' + esc(coord || '—') + '</b> está sin saldo: el primer SKU que registres la ocupará.</div></div>';
+  const det = items.map(i => '<b>' + esc(i.producto) + (i.medida && i.medida !== '0' ? ' ' + esc(i.medida) : '') + '</b> (' + fmtInt(i.stock) + ' cajas)').join(' · ');
+  return '<div class="alert info">' + ICONS.alert + '<div><b>Contenido actual de ' + esc(coord) + ':</b> ' + det + '. Lo que registres se <b>suma</b> a la posición: no se borra ni se pisa nada guardado.</div></div>';
+}
+
 /* ============================================================
    MODAL · Movimiento (nuevo / editar)
    ============================================================ */
@@ -6362,20 +6413,39 @@ function openMovModal(mov, linea, tipoFijo) {
   const dl = dataListValues();
   const editing = !!mov;
   if (editing && !puede('mov')) { toast('Tu usuario no tiene permiso para editar movimientos', 'warn'); return; }
-  const m = mov || {
-    fecha: todayISO(), tipo: tipoFijo || 'Ingreso', nroStock: linea ? linea.nroStock : '',
-    cliente: linea ? linea.cliente : '', contenedor: '', dua: '',
+  /* «Agregar SKU / caja a esta posición»: cabecera precargada desde el pallet
+     existente (coordenada, nivel, cliente, N.º stock, contenedor, DUA y fecha
+     de esa posición); solo se completa el nuevo Producto, Medida y Cantidad. */
+  const agregando = !mov && linea && linea.agregar;
+  const ses = cabeceraSesion();
+  const m = mov || (agregando ? {
+    fecha: linea.fecha || todayISO(), tipo: 'Ingreso', nroStock: linea.nroStock || '0',
+    cliente: linea.cliente || '', contenedor: linea.contenedor || '', dua: linea.dua || '',
+    producto: '', medida: '', coordenada: linea.coordenada || '', nivel: Number(linea.nivel) || 1,
+    cantidad: '', refDoc: normalizarRefDoc(linea.refDoc) || 'INGRESO', obs: '', impacto: null,
+  } : {
+    /* Cabecera heredada de la sesión (Cliente, N.º stock, Contenedor, DUA y
+       Ref.) salvo que venga una partida; Fecha actual e Ingreso por defecto */
+    fecha: todayISO(), tipo: tipoFijo || 'Ingreso',
+    nroStock: linea ? linea.nroStock : (ses.nroStock || ''),
+    cliente: linea ? linea.cliente : (ses.cliente || ''),
+    contenedor: linea ? (linea.contenedor || '') : (ses.contenedor || ''),
+    dua: linea ? (linea.dua || '') : (ses.dua || ''),
     producto: linea ? linea.producto : '', medida: linea ? linea.medida : '',
-    coordenada: linea ? linea.coordenada : '', cantidad: '', refDoc: tipoFijo === 'Egreso' ? 'Salida' : 'INGRESO', obs: '', impacto: null,
-  };
+    coordenada: linea ? linea.coordenada : '', cantidad: '',
+    refDoc: tipoFijo === 'Egreso' ? 'Salida' : (ses.refDoc || 'INGRESO'), obs: '', impacto: null,
+  });
   const impactoInicial = editing ? impactoDe(m) : impactoCalculado(m.tipo, m.cantidad || 0);
   openModal({
     perm: 'mov',
-    title: editing ? 'Editar movimiento' : 'Nuevo movimiento',
-    sub: editing ? 'Los cambios recalculan el stock de la posición afectada. Dejá registrado el motivo de la corrección.' : 'El impacto se calcula automáticamente: +cantidad en Ingresos/Ajuste +, −cantidad en Egresos/Ajuste −. Los productos nuevos se agregan solos al catálogo.',
+    title: editing ? 'Editar movimiento' : (agregando ? 'Agregar SKU / caja a la posición ' + esc(m.coordenada || '') : 'Nuevo movimiento'),
+    sub: editing ? 'Los cambios recalculan el stock de la posición afectada. Dejá registrado el motivo de la corrección.' : agregando
+      ? 'Cabecera precargada desde el pallet existente: completá solo el nuevo Producto, Medida y Cantidad. Si cambiás la coordenada o el nivel, el stock se recalcula en la posición anterior y en la nueva.'
+      : 'El impacto se calcula automáticamente: +cantidad en Ingresos/Ajuste +, −cantidad en Egresos/Ajuste −. Los productos nuevos se agregan solos al catálogo.',
     size: 'wide',
     body:
       formDataLists(dl) +
+      (agregando ? contenidoPosicionHTML(m.coordenada) : '') +
       (editing && mov.anulado ? '<div class="alert warn">' + ICONS.alert + '<div><b>Este movimiento está ANULADO</b>' + (mov.motivoAnulacion ? ' — motivo: ' + esc(mov.motivoAnulacion) : '') + '. Su efecto ya fue revertido por un ajuste de anulación: editarlo puede desincronizar ese par.</div></div>' : '') +
       '<div class="form-grid">' +
         fieldHTML('mv-fecha', 'Fecha', inp('mv-fecha', m.fecha, 'type="date"')) +
@@ -6428,10 +6498,10 @@ function openMovModal(mov, linea, tipoFijo) {
         if (meds.length === 1 && !$('#mv-med').value.trim()) $('#mv-med').value = meds[0];
         const cat = DB.productos.find(p => normKey(p.producto) === normKey(prod));
         if (cat && cat.cliente && !$('#mv-cliente').value.trim()) $('#mv-cliente').value = cat.cliente;
+        preview();
       };
       $('#mv-prod').onchange = aplicarCatalogo;
       $('#mv-prod').oninput = debounce(aplicarCatalogo, 250);
-      if (m.producto) aplicarCatalogo();
       /* Líneas adicionales del mismo pallet («+ Agregar producto al pallet»):
          cada línea es un movimiento propio con el mismo pallet/cabecera, para
          que el stock, el Resumen SKU y el Panel sumen cada producto por separado. */
@@ -6449,7 +6519,11 @@ function openMovModal(mov, linea, tipoFijo) {
             '</div>';
         }).join('');
         $$('#mvLineasExtra [data-mvrm]').forEach(b => b.onclick = () => { lineasExtra--; renderLineas(); });
-        for (let i = 0; i < lineasExtra; i++) { const cel = $('#mv-l' + (i + 2) + '-cant'); if (cel) cel.oninput = preview; }
+        for (let i = 0; i < lineasExtra; i++) {
+          const cel = $('#mv-l' + (i + 2) + '-cant'); if (cel) cel.oninput = preview;
+          const pe = $('#mv-l' + (i + 2) + '-prod'); if (pe) pe.oninput = preview;
+          const me = $('#mv-l' + (i + 2) + '-med'); if (me) me.oninput = preview;
+        }
         const multi = lineasExtra > 0;
         if (!editing) {
           $('#mv-manual').disabled = multi;
@@ -6476,6 +6550,24 @@ function openMovModal(mov, linea, tipoFijo) {
           const disp = lineas.reduce((a, l) => a + Math.max(0, disponibleDeLinea(l)), 0);
           extra = ' · Disponible en ' + c + ': <b>' + fmtInt(disp) + '</b> cajas' + (disp < cant && cant > 0 ? ' <b style="color:var(--danger)">— la salida supera el saldo disponible</b>' : '');
         }
+        /* Posición ocupada: aviso informativo, nunca bloquea el registro.
+           Mismo SKU → las cajas se suman; SKU distinto → palet compartido. */
+        if (c && (tipo === 'Ingreso' || tipo === 'Ajuste +') && (itemsActivos(c) || []).length) {
+          const enPos = itemsActivos(c);
+          const skus = [[$('#mv-prod').value.trim(), $('#mv-med').value.trim()]];
+          for (let i = 0; i < lineasExtra; i++) {
+            const pe = $('#mv-l' + (i + 2) + '-prod');
+            if (pe) skus.push([pe.value.trim(), ($('#mv-l' + (i + 2) + '-med') || {}).value || '']);
+          }
+          const valida = skus.filter(s => s[0]);
+          if (valida.length) {
+            const mismo = valida.every(s => enPos.some(l => normKey(l.producto) === normKey(s[0]) && normKey(l.medida || '0') === normKey(s[1] || '0')));
+            const nombres = enPos.slice(0, 3).map(l => esc(l.producto) + (l.medida && l.medida !== '0' ? ' ' + esc(l.medida) : '') + ' (' + fmtInt(l.stock) + ')').join(' · ') + (enPos.length > 3 ? ' + ' + (enPos.length - 3) + ' más' : '');
+            extra += mismo
+              ? '<br><span style="color:var(--warn)">⚠ <b>Posición ya ocupada por este mismo SKU</b> (' + nombres + '): las cajas se <b>suman</b> al producto existente — podés registrar sin problema.</span>'
+              : '<br><span style="color:var(--ok)">＋ <b>Posición compartida</b>: ya tiene ' + nombres + ' — el nuevo SKU se agrega al mismo pallet sin pisar lo guardado.</span>';
+          }
+        }
         $('#mv-preview').innerHTML = 'Este movimiento <b>' + sgn + fmtInt(Math.abs(imp)) + '</b> cajas al stock de <b>' + esc(c || '—') + '</b>.' + extra;
       };
       $('#mv-tipo').onchange = preview;
@@ -6487,6 +6579,7 @@ function openMovModal(mov, linea, tipoFijo) {
       $('#mv-manual').checked = editing && $('#mv-imp').disabled === false;
       if (editing) { $('#mv-imp').value = Math.abs(impactoDe(m)); }
       preview();
+      if (m.producto) aplicarCatalogo(); /* autocompletado inicial (preview ya está definido) */
       $('#mvCancel').onclick = closeModal;
       const guardar = async (conRemito) => {
         clearInvalid();
@@ -6560,6 +6653,7 @@ function openMovModal(mov, linea, tipoFijo) {
           }
         }
         for (const L of lineas) ensureInCatalog(L.producto, L.medida, nuevo.cliente);
+        if (!editing) recordarCabecera({ cliente: nuevo.cliente, nroStock: nuevo.nroStock === '0' ? '' : nuevo.nroStock, contenedor: nuevo.contenedor === '0' ? '' : nuevo.contenedor, dua: nuevo.dua, refDoc: nuevo.refDoc });
         dataChanged();
         closeModal();
         const totalCant = lineas.reduce((a, L) => a + L.cantidad, 0);
@@ -6710,6 +6804,7 @@ function openTrasladoModal(linea) {
 function openCargaRapidaModal() {
   const dl = dataListValues();
   const st = stockPorCoord();
+  const ses = cabeceraSesion();
   let rows = [];
   openModal({
     perm: 'carga',
@@ -6720,13 +6815,13 @@ function openCargaRapidaModal() {
       formDataLists(dl) +
       '<div class="form-grid">' +
         fieldHTML('cr-fecha', 'Fecha', inp('cr-fecha', todayISO(), 'type="date"')) +
-        fieldHTML('cr-cliente', 'Cliente', inp('cr-cliente', '', 'list="dl-clientes" placeholder="ej. Hidalgo"')) +
-        fieldHTML('cr-stock', 'N.º stock', inp('cr-stock', '', 'list="dl-stocks" placeholder="ej. 3244"')) +
-        fieldHTML('cr-cont', 'Contenedor', inp('cr-cont', '', 'list="dl-cont" placeholder="ej. DTP4490"')) +
-        fieldHTML('cr-dua', 'DUA', inp('cr-dua', '', 'list="dl-dua" placeholder="ej. 828734"')) +
+        fieldHTML('cr-cliente', 'Cliente', inp('cr-cliente', ses.cliente || '', 'list="dl-clientes" placeholder="ej. Hidalgo"')) +
+        fieldHTML('cr-stock', 'N.º stock', inp('cr-stock', ses.nroStock || '', 'list="dl-stocks" placeholder="ej. 3244"')) +
+        fieldHTML('cr-cont', 'Contenedor', inp('cr-cont', ses.contenedor || '', 'list="dl-cont" placeholder="ej. DTP4490"')) +
+        fieldHTML('cr-dua', 'DUA', inp('cr-dua', ses.dua || '', 'list="dl-dua" placeholder="ej. 828734"')) +
         fieldHTML('cr-prod', 'Producto', inp('cr-prod', '', 'list="dl-prod" placeholder="ej. Palmitos en rodajas Hidalgo"')) +
         fieldHTML('cr-med', 'Medida', inp('cr-med', '', 'list="dl-med" placeholder="ej. 12x800grs"')) +
-        fieldHTML('cr-ref', 'Ref. / documento', inp('cr-ref', 'Ingreso', 'list="dl-ref"')) +
+        fieldHTML('cr-ref', 'Ref. / documento', inp('cr-ref', ses.refDoc || 'Ingreso', 'list="dl-ref"')) +
       '</div>' +
       '<div class="form-section">Posiciones del ingreso</div>' +
       '<div class="range-tool">' +
@@ -6748,15 +6843,27 @@ function openCargaRapidaModal() {
         if (meds.length === 1 && !$('#cr-med').value.trim()) $('#cr-med').value = meds[0];
         const cat = DB.productos.find(p => normKey(p.producto) === normKey(prod));
         if (cat && cat.cliente && !$('#cr-cliente').value.trim()) $('#cr-cliente').value = cat.cliente;
+        renderRows();
       };
       $('#cr-prod').onchange = aplicarCatalogo;
       $('#cr-prod').oninput = debounce(aplicarCatalogo, 250);
+      /* Aviso por fila: informativo, nunca bloquea. Mismo SKU → las cajas se
+         suman; SKU distinto → la posición queda como palet compartido. */
+      const flagOcupacion = r => {
+        if (!r.coord || !((st.get(r.coord) || 0) > 0)) return '';
+        const enPos = lineasInventarioCache().filter(l => l.coordenada === r.coord && l.stock > 0);
+        if (!enPos.length) return '';
+        const prod = $('#cr-prod').value.trim(), med = $('#cr-med').value.trim();
+        const mismo = prod && enPos.every(l => normKey(l.producto) === normKey(prod) && normKey(l.medida || '0') === normKey(med || '0'));
+        const nombres = enPos.slice(0, 2).map(l => esc(l.producto) + (l.medida && l.medida !== '0' ? ' ' + esc(l.medida) : '') + ' (' + fmtInt(l.stock) + ')').join(' · ') + (enPos.length > 2 ? ' +' + (enPos.length - 2) : '');
+        return mismo ? '⚠ ya ocupada por este SKU (' + nombres + ') — se suman' : '＋ compartida con ' + nombres;
+      };
       const renderRows = () => {
         $('#cr-rows').innerHTML = rows.map((r, i) =>
           '<div class="qrow">' +
             '<select data-i="' + i + '" class="cr-coord">' + coordOptions(r.coord, { placeholder: 'Posición' }) + '</select>' +
             '<input data-i="' + i + '" class="cr-cant" type="number" min="0.01" step="any" placeholder="Cajas" value="' + esc(r.cant == null ? '' : r.cant) + '">' +
-            '<span class="warn-flag" data-i="' + i + '">' + (r.coord && (st.get(r.coord) || 0) > 0 ? '⚠ ya ocupada' : '') + '</span>' +
+            '<span class="warn-flag" data-i="' + i + '">' + flagOcupacion(r) + '</span>' +
             '<button class="icon-btn danger" data-rm="' + i + '" title="Quitar fila">' + ICONS.x + '</button>' +
           '</div>').join('') || '<div class="muted" style="font-size:12.5px;padding:4px 0">Sin filas todavía: generá un rango consecutivo o agregá filas manualmente.</div>';
         $$('#cr-rows .cr-coord').forEach(s => s.onchange = e => { rows[+e.target.dataset.i].coord = e.target.value; renderRows(); });
@@ -6806,6 +6913,7 @@ function openCargaRapidaModal() {
           DB.movimientos.push(mov); creados.push(mov);
         }
         ensureInCatalog(base.producto, base.medida, base.cliente);
+        recordarCabecera({ cliente: base.cliente, nroStock: base.nroStock === '0' ? '' : base.nroStock, contenedor: base.contenedor === '0' ? '' : base.contenedor, dua: base.dua, refDoc: base.refDoc });
         auditar('Carga rápida por contenedor', fmtInt(limpias.length) + ' posiciones · ' + fmtInt(limpias.reduce((a, r) => a + r.cant, 0)) + ' cajas · ' + (base.producto || '—') + (base.contenedor && base.contenedor !== '0' ? ' · ' + base.contenedor : '') + (base.dua ? ' · DUA ' + base.dua : ''));
         dataChanged();
         closeModal();
@@ -6949,13 +7057,13 @@ function openPosicionModal(coord) {
       '<button class="btn" id="poCerrar">Cerrar</button>' +
       '<button class="btn" id="poEtiqueta">' + ICONS.tag + ' Imprimir etiqueta</button>' +
       '<button class="btn" id="poVerMovs">' + ICONS.movs + ' Ver en Movimientos</button>' +
-      '<button class="btn" id="poIngreso">' + ICONS.plus + ' Registrar ingreso aquí</button>' +
+      '<button class="btn" id="poIngreso">' + ICONS.plus + ' Agregar SKU / caja a esta posición</button>' +
       (items.length ? '<button class="btn primary" id="poSalida">' + ICONS.out + ' Registrar salida</button>' : ''),
     onOpen() {
       $('#poCerrar').onclick = closeModal;
       $('#poEtiqueta').onclick = () => { closeModal(); openEtiquetaModal(coord); };
       $('#poVerMovs').onclick = () => { closeModal(); setView('movs', { q: coord }); };
-      $('#poIngreso').onclick = () => { closeModal(); openMovModal(null, { coordenada: coord }, 'Ingreso'); };
+      $('#poIngreso').onclick = () => { closeModal(); openMovModal(null, Object.assign({ agregar: true }, cabeceraDePosicion(coord, items[0])), 'Ingreso'); };
       const btnSal = $('#poSalida');
       if (btnSal) btnSal.onclick = () => { closeModal(); openMovModal(null, items[0], 'Egreso'); };
       $$('#modalBox [data-salida]').forEach(b => b.onclick = () => { closeModal(); openMovModal(null, lineaByKey(b.dataset.salida), 'Egreso'); });
