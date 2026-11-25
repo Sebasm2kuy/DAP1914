@@ -170,7 +170,26 @@ body {
 
 /* ---------- Contenido ---------- */
 
-.content { padding: 20px 18px 60px; max-width: 1460px; width: 100%; margin: 0 auto; }
+.content { padding: 20px 14px 60px; width: 100%; margin: 0 auto; }
+/* Escritorio angosto: menos aire lateral para que la tabla respire (la regla
+   de tablet, más abajo en el archivo, sigue ganando en ≤1000px) */
+@media (max-width: 1366px) { .content { padding: 16px 10px 50px; } .sidebar { padding: 12px 10px; } }
+/* Rail de íconos (escritorio entre 981 y 1366px): el menú lateral pasa a modo
+   compacto con íconos y tooltips para que las 15 columnas del Registro de
+   movimientos entren sin scroll horizontal a 100% de zoom */
+@media (min-width: 981px) and (max-width: 1366px) {
+  .app { grid-template-columns: 56px 1fr; }
+  .sidebar { width: 56px; padding: 12px 8px; }
+  .brand { padding: 4px 0 12px; justify-content: center; }
+  .brand-logo { width: 30px; height: 30px; }
+  .brand > div:last-child { display: none; }
+  .nav-item { padding: 10px 0; gap: 0; justify-content: center; }
+  .nav-item > span { display: none; }
+  .nav-label { display: none; }
+  .sidebar-foot .user-chip { flex-direction: column; gap: 6px; padding: 10px 0 0; border-top: 1px solid var(--border); }
+  .user-chip .uc-txt { display: none; }
+  .sidebar-foot .sf-stats { display: none; }
+}
 
 .view { display: none; }
 .view.active { display: block; animation: fadeIn .18s ease; }
@@ -282,18 +301,18 @@ body {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   box-shadow: var(--shadow); overflow: auto; max-height: none;
 }
-table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.tbl { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 .tbl th {
   position: sticky; top: 0; z-index: 5;
   background: var(--surface-2); color: var(--text-2);
   font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
-  text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--border-2);
+  text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border-2);
   white-space: nowrap; user-select: none;
 }
 .tbl th.sortable { cursor: pointer; }
 .tbl th.sortable:hover { color: var(--accent-text); }
 .tbl th .arr { font-size: 9px; }
-.tbl td { padding: 8px 11px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.tbl td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .tbl tbody tr:hover { background: var(--surface-2); }
 .tbl tbody tr:last-child td { border-bottom: 0; }
 .tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -301,6 +320,21 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 .tbl .coord { font-family: var(--mono); font-weight: 700; white-space: nowrap; }
 .tbl .muted { color: var(--text-3); }
 .tbl .strong { font-weight: 700; }
+/* Celdas cortas (fechas, N.º stock, números, coordenadas): sin salto de línea */
+.tbl td.mono, .tbl td.num, .tbl td.coord { white-space: nowrap; }
+/* Textos largos (Producto, Contenedor, Observaciones…): una línea con elipsis.
+   Se usa con un max-width por columna y title con el texto completo. */
+.tbl td.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Tabla densa del Registro de movimientos: 15 columnas visibles sin scroll
+   horizontal a 100% de zoom en escritorio estándar (1280–1600px) */
+.tbl.densa { font-size: 12px; }
+.tbl.densa th { padding: 6px 5px; font-size: 10px; letter-spacing: .04em; }
+.tbl.densa td { padding: 4px 5px; }
+.tbl.densa td.mono { font-size: 11.5px; }
+.tbl.densa .badge { font-size: 9.5px; padding: 1px 5px; letter-spacing: .01em; gap: 4px; }
+.tbl.densa .row-actions { gap: 0; }
+.tbl.densa .row-actions .icon-btn { padding: 2px; }
+.tbl.densa .row-actions .icon-btn svg { width: 11px; height: 11px; }
 .tbl tfoot td { background: var(--surface-2); font-weight: 800; border-top: 2px solid var(--border-2); }
 .tbl tr.expandable { cursor: pointer; }
 .tbl tr.detail-row td { background: var(--surface-3); padding: 0; }
@@ -3699,11 +3733,11 @@ function celdaVigencia(m, saldos) {
   if (est === null) {
     const imp = Math.abs(impactoDe(m));
     const esTraslado = /traslado/i.test(String(m.refDoc || ''));
-    return '<span class="badge neutral" title="Movimiento de salida' + (esTraslado ? ' (pierna de traslado)' : '') + ': retira ' + fmtInt(imp) + ' cajas de la posición ' + esc(m.coordenada || '—') + '. Es el impacto histórico del registro, no disponibilidad actual; el saldo vigente por posición se ve en Stock Actual.">Impacto: −' + fmtInt(imp) + ' cajas</span>';
+    return '<span class="badge neutral" title="Movimiento de salida' + (esTraslado ? ' (pierna de traslado)' : '') + ': retira ' + fmtInt(imp) + ' cajas de la posición ' + esc(m.coordenada || '—') + '. Es el impacto histórico del registro, no disponibilidad actual; el saldo vigente por posición se ve en Stock Actual.">Impacto: −' + fmtInt(imp) + '</span>';
   }
-  if (est.estado === 'agotado') return '<span class="badge neutral" title="Partida agotada: los egresos de esta clave (N.º stock · producto · posición' + (m.dua ? ' · DUA ' + esc(m.dua) : '') + ') consumieron todas sus cajas. Queda como registro histórico y trazabilidad aduanera, no como stock disponible.">Agotada · Saldo: 0 cajas</span>';
-  if (est.estado === 'parcial') return '<span class="badge warn" title="Saldo parcial: la partida ingresó con ' + fmtInt(est.inicial) + ' cajas y conserva ' + fmtInt(est.vigente) + ' después de egresos parciales sobre esta misma clave.">Parcial · Saldo: ' + fmtInt(est.vigente) + ' / ' + fmtInt(est.inicial) + ' cajas</span>';
-  return '<span class="badge ok" title="Vigente: la partida conserva sus ' + fmtInt(est.vigente) + ' cajas; no hay egresos registrados contra esta clave.">Vigente · Saldo: ' + fmtInt(est.vigente) + ' cajas</span>';
+  if (est.estado === 'agotado') return '<span class="badge neutral" title="Partida agotada: los egresos de esta clave (N.º stock · producto · posición' + (m.dua ? ' · DUA ' + esc(m.dua) : '') + ') consumieron todas sus cajas. Queda como registro histórico y trazabilidad aduanera, no como stock disponible.">Agotada · 0</span>';
+  if (est.estado === 'parcial') return '<span class="badge warn" title="Saldo parcial: la partida ingresó con ' + fmtInt(est.inicial) + ' cajas y conserva ' + fmtInt(est.vigente) + ' después de egresos parciales sobre esta misma clave.">Parcial · ' + fmtInt(est.vigente) + ' / ' + fmtInt(est.inicial) + '</span>';
+  return '<span class="badge ok" title="Vigente: la partida conserva sus ' + fmtInt(est.vigente) + ' cajas; no hay egresos registrados contra esta clave.">Vigente · ' + fmtInt(est.vigente) + '</span>';
 }
 /* Ítems activos (saldo > 0) de una coordenada */
 function itemsActivos(coord) {
@@ -3920,7 +3954,7 @@ function renderNav() {
 }
 function navItem(id) {
   const v = VIEWS.find(x => x.id === id);
-  return '<button class="nav-item' + (currentView === id ? ' active' : '') + '" data-view="' + id + '">' + ICONS[v.icon] + '<span>' + v.name + '</span><span class="count" data-count="' + id + '"></span></button>';
+  return '<button class="nav-item' + (currentView === id ? ' active' : '') + '" data-view="' + id + '" title="' + esc(v.name) + '">' + ICONS[v.icon] + '<span>' + v.name + '</span><span class="count" data-count="' + id + '"></span></button>';
 }
 function renderNavCounts() {
   const k = kpis();
@@ -5580,8 +5614,8 @@ RENDERERS.movs = function (patch) {
     list.sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || ((a.n || 0) - (b.n || 0)));
     if (MOV_F.desc) list.reverse();
     $('#mvCount').textContent = fmtInt(list.length) + ' de ' + fmtInt(DB.movimientos.length) + ' movimientos';
-    let html = '<div class="tbl-wrap" style="max-height:70vh"><table class="tbl"><thead><tr>' +
-      '<th>Fecha</th><th>Tipo movimiento</th><th>N.º stock</th><th>Cliente</th><th>Contenedor</th><th>DUA</th><th>Producto</th><th>Medida</th><th>Coordenada</th><th class="num">Cantidad (cajas)</th><th>Ref. / documento</th><th>Observaciones</th><th class="num">Impacto stock</th><th>Vigencia / saldo</th><th></th>' +
+    let html = '<div class="tbl-wrap" style="max-height:70vh"><table class="tbl densa"><thead><tr>' +
+      '<th title="Fecha del movimiento">Fecha</th><th title="Tipo de movimiento">Tipo</th><th title="N.º de stock">Stock</th><th>Cliente</th><th title="Contenedor">Cont.</th><th>DUA</th><th>Producto</th><th>Medida</th><th title="Coordenada (con nivel físico)">Coord.</th><th class="num" title="Cantidad (cajas)">Cant.</th><th title="Ref. / documento">Ref.</th><th title="Observaciones">Obs.</th><th class="num" title="Impacto en el stock">Impacto</th><th title="Vigencia / saldo de la partida">Vigencia</th><th></th>' +
       '</tr></thead><tbody>';
     for (const m of list) {
       const anulado = !!m.anulado;
@@ -5589,15 +5623,15 @@ RENDERERS.movs = function (patch) {
         '<td class="mono">' + fmtDate(m.fecha) + '</td>' +
         '<td>' + badgeTipo(m.tipo) + (anulado ? ' <span class="badge warn" title="' + esc(m.motivoAnulacion || 'Anulado') + '">ANULADO</span>' : (m.anulaA ? ' <span class="badge outline" title="Ajuste de anulación">↩</span>' : '')) + '</td>' +
         '<td class="mono">' + esc(m.nroStock || '0') + '</td>' +
-        '<td>' + esc(m.cliente || '—') + '</td>' +
-        '<td class="mono">' + (m.contenedor && m.contenedor !== '0' ? esc(m.contenedor) : '<span class="muted">—</span>') + '</td>' +
-        '<td class="mono">' + esc(m.dua || '—') + '</td>' +
-        '<td class="strong">' + esc(m.producto || '—') + '</td>' +
-        '<td>' + esc(m.medida || '—') + '</td>' +
+        '<td class="trunc" style="max-width:96px" title="' + esc(m.cliente || '—') + '">' + esc(m.cliente || '—') + '</td>' +
+        '<td class="mono trunc" style="max-width:88px" title="' + esc(m.contenedor && m.contenedor !== '0' ? m.contenedor : '—') + '">' + (m.contenedor && m.contenedor !== '0' ? esc(m.contenedor) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="mono trunc" style="max-width:64px" title="' + esc(m.dua || '—') + '">' + esc(m.dua || '—') + '</td>' +
+        '<td class="strong trunc" style="max-width:120px" title="' + esc(m.producto || '—') + '">' + esc(m.producto || '—') + '</td>' +
+        '<td class="trunc" style="max-width:96px" title="' + esc(m.medida || '—') + '">' + esc(m.medida || '—') + '</td>' +
         '<td class="coord">' + esc(m.coordenada) + (Number(m.nivel) > 1 ? ' <span class="badge outline" title="Nivel físico (altura)">N' + Math.round(Number(m.nivel)) + '</span>' : '') + '</td>' +
         '<td class="num">' + fmtInt(m.cantidad) + '</td>' +
-        '<td>' + esc(normalizarRefDoc(m.refDoc) || '—') + '</td>' +
-        '<td class="muted">' + esc(m.obs || '') + '</td>' +
+        '<td class="trunc" style="max-width:90px" title="' + esc(normalizarRefDoc(m.refDoc) || '—') + '">' + esc(normalizarRefDoc(m.refDoc) || '—') + '</td>' +
+        '<td class="muted trunc" style="max-width:88px" title="' + esc(m.obs || '—') + '">' + esc(m.obs || '') + '</td>' +
         impactCell(impactoDe(m)) +
         '<td>' + celdaVigencia(m, saldos) + '</td>' +
         '<td><div class="row-actions">' +
