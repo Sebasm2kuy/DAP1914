@@ -5328,7 +5328,7 @@ RENDERERS.mapa3d = function () {
       '</span>' +
       '<span class="filter-count" id="m3Resumen">' + fmtInt(mapa3dTodasCoords().length) + ' posiciones · ' + fmtInt(fisicos) + ' niveles · ' + fmtInt(ocupadas) + ' con stock</span>' +
     '</div>' +
-    '<div id="m3Feedback" style="font-size:12px;color:var(--text-3);margin:0 0 10px">Arrastrá para rotar · Shift+arrastrar, botón derecho o dos dedos para moverte a lo ancho (también flechas/WASD) · rueda o ± para zoom · mouse sobre una posición = sus datos · clic = detalle por nivel.</div>' +
+    '<div id="m3Feedback" style="font-size:12px;color:var(--text-3);margin:0 0 10px">Arrastrá para rotar · Shift+arrastrar, botón derecho o dos dedos para moverte a lo ancho (también flechas/WASD) · rueda = zoom hacia el cursor · ± centrado en la vista · mouse sobre una posición = sus datos · clic = detalle por nivel.</div>' +
     '<div class="mapa3d-grid">' +
       '<div class="mapa3d-wrap" id="m3Wrap"><canvas id="m3Canvas"></canvas><div class="mapa3d-hud" id="m3Hud" style="display:none"></div><div class="mapa3d-hudfs" id="m3HudFs"></div>' +
         '<div class="mapa3d-zoom"><button id="m3Zin" title="Acercar">+</button><button id="m3Zout" title="Alejar">−</button><button id="m3Zreset" class="m3-wide" title="Restablecer vista">Reset</button><button id="m3Amp" class="m3-txt" title="Vista ampliada: agranda el lienzo ocultando el menú lateral y el texto secundario; los indicadores y el detalle siguen visibles (Esc sale)">' + ICONS.maximize + ' Ampliar</button><button id="m3Full" class="m3-txt" title="Pantalla completa con HUD flotante de indicadores (Esc sale)">' + ICONS.expand + ' Pantalla completa</button></div>' +
@@ -5556,8 +5556,9 @@ RENDERERS.mapa3d = function () {
     const dx = ev.clientX - prev.x, dy = ev.clientY - prev.y;
     prev = { x: ev.clientX, y: ev.clientY };
     if (panMode) { panea(dx, dy); return; }
-    de.theta -= dx * 0.0055;
-    de.phi = Math.max(0.12, Math.min(Math.PI / 2 - 0.05, de.phi - dy * 0.005));
+    de.theta -= dx * 0.005;
+    de.phi = Math.max(0.12, Math.min(Math.PI / 2 - 0.05, de.phi - dy * 0.0045));
+    e.theta = de.theta; e.phi = de.phi; /* rotación directa 1:1: precisa, sin retardo al soltar */
   };
   const onUp = ev => {
     if (!dragging) return;
@@ -5566,16 +5567,38 @@ RENDERERS.mapa3d = function () {
     if (Math.hypot(ev.clientX - downPos.x, ev.clientY - downPos.y) < 6) pick(ev.clientX, ev.clientY);
   };
   let panMode = false;
-  /* pan: desplaza el objetivo de la cámara (el contenido acompaña el arrastre) */
+  /* punto del plano del suelo (y=0) bajo un punto de pantalla — proyección inversa */
+  const puntoSueloBajo = (clientX, clientY) => {
+    /* proyecta contra la cámara OBJETIVO (de): cada muesca de rueda se ancla sobre la
+       vista a la que se está llegando, así el anclaje al cursor es exacto y sin deriva */
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(rect.width, 1), h = Math.max(rect.height, 1);
+    const sx = clientX - rect.left, sy = clientY - rect.top;
+    const ky = 0.28 + Math.cos(de.phi) * 0.72;
+    const escala = (Math.min(w, h) * 0.92) / Math.max(de.radius, 12);
+    const ct = Math.cos(de.theta), st = Math.sin(de.theta);
+    const rx = (sx - w * 0.5) / escala;
+    const rz = ((sy - h * 0.54) / escala - de.target.y * 0.85) / ky;
+    return { x: de.target.x + rx * ct + rz * st, z: de.target.z - rx * st + rz * ct };
+  };
+  /* límites de desplazamiento: todo el depósito (A–F) alcanzable, sin poder perderse */
+  const clampTarget = (t) => ({
+    x: Math.max(-33.5, Math.min(33.5, t.x)),
+    y: t.y,
+    z: Math.max(-11, Math.min(65, t.z)),
+  });
+  /* pan: desplaza el objetivo de la cámara (el contenido acompaña el arrastre 1:1, sin retardo) */
   const panea = (dxp, dyp) => {
     const rect = canvas.getBoundingClientRect();
     const escala = Math.min(rect.width, rect.height) * 0.92 / Math.max(e.radius, 12);
     const ct = Math.cos(e.theta), st = Math.sin(e.theta);
-    de.target = {
-      x: Math.max(-34, Math.min(34, de.target.x - ct * dxp / escala - st * dyp / (escala * 0.52))),
+    const ky = 0.28 + Math.cos(e.phi) * 0.72; /* factor vertical real de la proyección */
+    de.target = clampTarget({
+      x: de.target.x - ct * dxp / escala - st * dyp / (escala * ky),
       y: de.target.y,
-      z: Math.max(-13, Math.min(26, de.target.z + st * dxp / escala - ct * dyp / (escala * 0.52))),
-    };
+      z: de.target.z + st * dxp / escala - ct * dyp / (escala * ky),
+    });
+    e.target = { x: de.target.x, y: de.target.y, z: de.target.z }; /* movimiento directo, sin inercia */
   };
   if (MAPA3D._winMove) window.removeEventListener('mousemove', MAPA3D._winMove);
   if (MAPA3D._winUp) window.removeEventListener('mouseup', MAPA3D._winUp);
@@ -5598,7 +5621,16 @@ RENDERERS.mapa3d = function () {
     } else { canvas.style.cursor = ''; hud.style.display = 'none'; }
   });
   canvas.addEventListener('mouseleave', () => { hud.style.display = 'none'; canvas.style.cursor = ''; });
-  canvas.addEventListener('wheel', ev => { ev.preventDefault(); de.radius = Math.max(14, Math.min(170, de.radius + ev.deltaY * 0.02)); MAPA3D.radiusTocado = true; }, { passive: false });
+  /* zoom con la rueda anclado al cursor: el punto del mapa bajo el puntero no se mueve */
+  canvas.addEventListener('wheel', ev => {
+    ev.preventDefault();
+    MAPA3D.radiusTocado = true;
+    const r0 = de.radius, r1 = Math.max(12, Math.min(170, r0 * Math.exp(ev.deltaY * 0.0012))); /* ±12% por muesca de mouse, continuo en trackpad */
+    const P = puntoSueloBajo(ev.clientX, ev.clientY);
+    const f = r1 / r0;
+    de.radius = r1;
+    de.target = clampTarget({ x: P.x * (1 - f) + de.target.x * f, y: de.target.y * f, z: P.z * (1 - f) + de.target.z * f }); /* y·f compensa el término vertical absoluto: el suelo queda EXACTO bajo el cursor */
+  }, { passive: false });
   let pinch = null;
   canvas.addEventListener('touchstart', ev => {
     if (ev.touches.length === 1) { dragging = true; panMode = false; const t = ev.touches[0]; downPos = { x: t.clientX, y: t.clientY }; prev = { x: t.clientX, y: t.clientY }; }
@@ -5609,14 +5641,21 @@ RENDERERS.mapa3d = function () {
     if (ev.touches.length === 1 && !panMode) {
       const t = ev.touches[0], dx = t.clientX - prev.x, dy = t.clientY - prev.y;
       prev = { x: t.clientX, y: t.clientY };
-      de.theta -= dx * 0.006;
-      de.phi = Math.max(0.12, Math.min(Math.PI / 2 - 0.05, de.phi - dy * 0.0055));
+      de.theta -= dx * 0.0055;
+      de.phi = Math.max(0.12, Math.min(Math.PI / 2 - 0.05, de.phi - dy * 0.005));
+      e.theta = de.theta; e.phi = de.phi;
     } else if (ev.touches.length === 2) {
       const a = ev.touches[0], b2 = ev.touches[1];
       const d = Math.hypot(a.clientX - b2.clientX, a.clientY - b2.clientY);
       const mid = { x: (a.clientX + b2.clientX) / 2, y: (a.clientY + b2.clientY) / 2 };
       if (pinch) {
-        if (pinch.d > 0) de.radius = Math.max(14, Math.min(80, de.radius * pinch.d / d));
+        if (pinch.d > 0) {
+          const r0 = de.radius, r1 = Math.max(12, Math.min(170, r0 * pinch.d / d));
+          const P = puntoSueloBajo(mid.x, mid.y); /* zoom anclado al punto medio del gesto */
+          const f = r1 / r0;
+          de.radius = r1;
+          de.target = clampTarget({ x: P.x * (1 - f) + de.target.x * f, y: de.target.y * f, z: P.z * (1 - f) + de.target.z * f });
+        }
         panea(mid.x - pinch.mid.x, mid.y - pinch.mid.y);
       }
       pinch = { d, mid };
@@ -5694,8 +5733,8 @@ RENDERERS.mapa3d = function () {
   $$('#view-mapa3d [data-cam]').forEach(btn => btn.onclick = () => aplicarPreset(btn.dataset.cam));
   $('#m3TNum').onchange = ev => { e.mostrarNumeros = ev.target.checked; };
   $('#m3TLabels').onchange = ev => { e.mostrarEtiquetas = ev.target.checked; };
-  $('#m3Zin').onclick = () => { de.radius = Math.max(14, de.radius - 5); MAPA3D.radiusTocado = true; };
-  $('#m3Zout').onclick = () => { de.radius = Math.min(170, de.radius + 5); MAPA3D.radiusTocado = true; };
+  $('#m3Zin').onclick = () => { de.radius = Math.max(12, de.radius * 0.85); MAPA3D.radiusTocado = true; };
+  $('#m3Zout').onclick = () => { de.radius = Math.min(170, de.radius / 0.85); MAPA3D.radiusTocado = true; };
   $('#m3Zreset').onclick = () => { aplicarPreset('general'); MAPA3D.radiusTocado = false; };
   /* ---------- modos de vista: normal · ampliado · pantalla completa ---------- */
   const aplicarClasesModo = () => {
