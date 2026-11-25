@@ -3965,7 +3965,7 @@ function renderNavCounts() {
     cli: String(DB.clientes.length), prod: String(DB.productos.length),
     pal: String(k.saldoPallets), reservas: String(k.reservasActivas || ''), mapa3d: '',
     reportes: '', auditoria: String(DB.auditoria.length),
-    usuarios: String((DB.usuarios || []).length),
+    usuarios: String((DB.usuarios || []).filter(u => !usuarioEliminado(u)).length),
   };
   $$('#mainNav .count').forEach(el => { el.textContent = counts[el.dataset.count] || ''; });
   const rc = $('#navRegCount'); if (rc) rc.textContent = fmtInt(k.totalMovs);
@@ -4205,6 +4205,9 @@ function ensureUsuarios() {
   if (!DB) return;
   if (!Array.isArray(DB.usuarios)) DB.usuarios = [];
   if (!DB.usuarios.length) DB.usuarios = usuariosDefault();
+  /*Las cuentas del sistema (Sebastián, Invitado) vuelven solas si una copia
+    vieja de Drive las trajo con marca de papelera por error*/
+  DB.usuarios.forEach(u => { if (u.builtIn && u.borrado) { delete u.borrado; delete u.borradoEl; delete u.borradoPor; } });
   if (!DB.usuarios.some(u => u.builtIn === 'admin')) {
     /*Nunca dejar al sistema sin administrador*/
     const def = usuariosDefault();
@@ -4218,9 +4221,13 @@ let SESION = null;
 
 function buscarUsuario(usuario) {
   const n = normKey(String(usuario || ''));
-  return (DB.usuarios || []).find(u => normKey(u.usuario) === n) || null;
+  return (DB.usuarios || []).find(u => !usuarioEliminado(u) && normKey(u.usuario) === n) || null;
 }
 function usuarioActivo(u) { return u && u.activo !== false; }
+/*Cuentas en la papelera: siguen en la base (y en la copia de Drive) pero no
+  pueden entrar ni aparecen como activas. Nada se borra definitivamente.*/
+function usuarioEliminado(u) { return !!(u && u.borrado); }
+function usuarioDisponible(u) { return !!u && usuarioActivo(u) && !usuarioEliminado(u); }
 /*¿La clave presentada es correcta para el usuario?*/
 function claveCorrecta(u, clave) {
   if (!u) return false;
@@ -4279,7 +4286,7 @@ function sesionRestaurada() {
     if (!raw) return false;
     const s = JSON.parse(raw);
     const u = (DB.usuarios || []).find(x => x.id === s.uid);
-    if (!usuarioActivo(u)) { sessionStorage.removeItem(LS_SESION); return false; }
+    if (!usuarioDisponible(u)) { sessionStorage.removeItem(LS_SESION); return false; }
     SESION = u;
     return true;
   } catch (e) { return false; }
@@ -4320,7 +4327,7 @@ function ocultarLock() { const el = $('#lock'); if (el) el.style.display = 'none
 function renderLock() {
   const el = $('#lock');
   if (!el) return;
-  const users = (DB.usuarios || []).filter(usuarioActivo);
+  const users = (DB.usuarios || []).filter(usuarioDisponible);
   const inicial = u => ((u.nombre || u.usuario || '?').trim()[0] || '?').toUpperCase();
   el.innerHTML =
     '<div class="lock-card">' +
@@ -4395,7 +4402,8 @@ RENDERERS.usuarios = function () {
       '<div class="alert warn">' + ICONS.alert + '<div><b>No tenés permiso de administración.</b> Esta sección es solo para el administrador del sistema.</div></div>';
     return;
   }
-  const users = DB.usuarios.slice().sort((a, b) => (a.builtIn === 'admin' ? -1 : b.builtIn === 'admin' ? 1 : (a.builtIn === 'invitado' ? -1 : b.builtIn === 'invitado' ? 1 : 0)) || String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
+  const users = DB.usuarios.filter(u => !usuarioEliminado(u)).slice().sort((a, b) => (a.builtIn === 'admin' ? -1 : b.builtIn === 'admin' ? 1 : (a.builtIn === 'invitado' ? -1 : b.builtIn === 'invitado' ? 1 : 0)) || String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
+  const papelera = DB.usuarios.filter(usuarioEliminado);
   const activos = users.filter(usuarioActivo).length;
   const totales = users.filter(u => permisosDe(u).admin).length;
   const ult = users.filter(u => u.ultimoAcceso).sort((a, b) => String(b.ultimoAcceso).localeCompare(String(a.ultimoAcceso)))[0];
@@ -4426,11 +4434,20 @@ RENDERERS.usuarios = function () {
           '</div></td></tr>';
       }).join('') +
     '</tbody></table></div>' +
-    '<div class="alert info" style="margin-top:14px">' + ICONS.shield + '<div><b>Cómo funciona el acceso.</b> Cada persona entra con su usuario desde la pantalla de inicio; la sesión queda abierta en ese navegador hasta «Cerrar sesión». El usuario <b>Invitado</b> entra sin contraseña solo para <b>ver, imprimir y exportar</b>; ajustale los permisos desde «Editar» si querés algo distinto. La cuenta de Sebastián no se puede eliminar ni desactivar, y siempre conserva acceso total.</div></div>';
+    (papelera.length ?
+      '<div class="rack-head" style="margin-top:18px"><h3>Papelera de cuentas</h3><span class="muted">Nada se borra definitivamente: se restauran con su contraseña y permisos intactos</span></div>' +
+      '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Usuario</th><th>Enviada a la papelera</th><th>Estado</th><th></th></tr></thead><tbody>' +
+      papelera.map(u => '<tr style="opacity:.8"><td><b>' + esc(u.nombre || '—') + '</b><br><small class="muted">@' + esc(u.usuario) + '</small></td>' +
+        '<td class="muted" style="white-space:nowrap">El ' + esc(fmtDate(u.borradoEl || '')) + (u.borradoPor ? ' · por ' + esc(u.borradoPor) : '') + '</td>' +
+        '<td><span class="badge neutral">En papelera</span></td>' +
+        '<td><div class="row-actions"><button class="btn sm" data-ures="' + esc(u.id) + '">' + ICONS.hist + ' Restaurar</button></div></td></tr>').join('') +
+      '</tbody></table></div>' : '') +
+    '<div class="alert info" style="margin-top:14px">' + ICONS.shield + '<div><b>Cómo funciona el acceso.</b> Cada persona entra con su usuario desde la pantalla de inicio; la sesión queda abierta en ese navegador hasta «Cerrar sesión». El usuario <b>Invitado</b> entra sin contraseña solo para <b>ver, imprimir y exportar</b>; ajustale los permisos desde «Editar» si querés algo distinto. La cuenta de Sebastián no se puede eliminar ni desactivar, y siempre conserva acceso total. Las cuentas «eliminadas» van a la <b>Papelera de cuentas</b> (al pie de esta vista) y se restauran con su contraseña y permisos intactos: nada se borra definitivamente.</div></div>';
   $('#usrNuevo').onclick = () => openUsuarioModal(null);
   $$('#view-usuarios [data-uedit]').forEach(b => b.onclick = () => openUsuarioModal(DB.usuarios.find(u => u.id === b.dataset.uedit)));
   $$('#view-usuarios [data-utog]').forEach(b => b.onclick = () => toggleUsuarioActivo(DB.usuarios.find(u => u.id === b.dataset.utog)));
   $$('#view-usuarios [data-udel]').forEach(b => b.onclick = () => eliminarUsuario(DB.usuarios.find(u => u.id === b.dataset.udel)));
+  $$('#view-usuarios [data-ures]').forEach(b => b.onclick = () => restaurarUsuario(DB.usuarios.find(u => u.id === b.dataset.ures)));
 };
 
 function permisosCheckHTML(perms) {
@@ -4505,6 +4522,7 @@ function guardarUsuario(original) {
   if (nombre.length < 2) { markInvalid('usr-nombre', 'Escribí el nombre (mínimo 2 caracteres).'); return; }
   if (usuario.length < 2 || /\s/.test(usuario)) { markInvalid('usr-usuario', 'El usuario debe tener al menos 2 caracteres, sin espacios.'); return; }
   const dup = DB.usuarios.find(x => x.id !== (original ? original.id : '') && normKey(x.usuario) === normKey(usuario));
+  if (dup && dup.borrado) { markInvalid('usr-usuario', 'Ese nombre de usuario está reservado: la cuenta de «' + (dup.nombre || dup.usuario) + '» está en la papelera de cuentas (restaurala desde Usuarios).'); return; }
   if (dup) { markInvalid('usr-usuario', 'Ya existe un usuario «' + (dup.nombre || dup.usuario) + '» con ese nombre de usuario.'); return; }
   if (!sinClave) {
     if (!original && clave.length < 4) { markInvalid('usr-clave', 'La contraseña debe tener al menos 4 caracteres (o marcá «Sin contraseña»).'); return; }
@@ -4531,7 +4549,7 @@ function guardarUsuario(original) {
     auditar('Usuario creado', u.nombre + ' (@' + u.usuario + ') · permisos: ' + resumenPermisos(u));
   }
   if (self) SESION = u;
-  saveDB();
+  dataChanged();
   closeModal();
   RENDERERS.usuarios();
   aplicarPermisosUI();
@@ -4547,27 +4565,37 @@ function toggleUsuarioActivo(u) {
   if (!u) return;
   if (SESION && SESION.id === u.id) { toast('No podés desactivar tu propia cuenta', 'error'); return; }
   if (u.builtIn === 'admin') { toast('La cuenta de Sebastián siempre queda activa', 'warn'); return; }
+  if (usuarioEliminado(u)) return;
   u.activo = !usuarioActivo(u);
   auditar(u.activo ? 'Usuario activado' : 'Usuario desactivado', u.nombre + ' (@' + u.usuario + ')');
-  saveDB();
-  RENDERERS.usuarios();
+  dataChanged();
   toast(u.activo ? 'Usuario activado' : 'Usuario desactivado', 'ok', u.nombre + ' ya ' + (u.activo ? 'puede' : 'no puede') + ' entrar');
 }
 async function eliminarUsuario(u) {
-  if (!u) return;
+  if (!u || usuarioEliminado(u)) return;
   if (u.builtIn) { toast('Las cuentas del sistema (Sebastián e Invitado) no se eliminan', 'warn'); return; }
   if (SESION && SESION.id === u.id) { toast('No podés eliminar tu propia cuenta', 'error'); return; }
   const ok = await confirmDialog({
-    title: 'Eliminar usuario',
-    html: 'Se eliminará la cuenta <b>' + esc(u.nombre) + '</b> (@' + esc(u.usuario) + '). Los registros de auditoría se conservan.',
-    yes: 'Eliminar', danger: true,
+    title: 'Enviar la cuenta a la papelera',
+    html: 'La cuenta <b>' + esc(u.nombre) + '</b> (@' + esc(u.usuario) + ') deja de poder entrar y deja de contar en las listas, <b>pero no se borra</b>: queda en la <b>Papelera de cuentas</b> y se restaura con su contraseña y permisos intactos. El nombre de usuario queda reservado.',
+    yes: 'Enviar a la papelera', danger: true,
   });
   if (!ok) return;
-  DB.usuarios = DB.usuarios.filter(x => x.id !== u.id);
-  auditar('Usuario eliminado', u.nombre + ' (@' + u.usuario + ')');
-  saveDB();
-  RENDERERS.usuarios();
-  toast('Usuario eliminado', 'ok', u.nombre);
+  u.borrado = true;
+  u.borradoEl = todayISO();
+  u.borradoPor = SESION ? (nombreUsuarioSesion() || '—') : '—';
+  auditar('Cuenta enviada a la papelera', u.nombre + ' (@' + u.usuario + ') — recuperable desde Usuarios');
+  dataChanged();
+  toast('Cuenta enviada a la papelera', 'ok', 'Restaurala desde Usuarios → Papelera de cuentas.');
+}
+function restaurarUsuario(u) {
+  if (!u || !usuarioEliminado(u)) return;
+  const dup = (DB.usuarios || []).find(x => x.id !== u.id && !usuarioEliminado(x) && normKey(x.usuario) === normKey(u.usuario));
+  if (dup) { toast('No se puede restaurar: ya existe otra cuenta activa con el usuario @' + (dup.usuario || ''), 'error'); return; }
+  delete u.borrado; delete u.borradoEl; delete u.borradoPor;
+  auditar('Cuenta restaurada desde la papelera', u.nombre + ' (@' + u.usuario + ')');
+  dataChanged();
+  toast('Cuenta restaurada', 'ok', u.nombre + ' (@' + u.usuario + ') vuelve con su contraseña y permisos intactos.');
 }
 
 /* ---------- Iconos del módulo ---------- */
@@ -8012,11 +8040,13 @@ function mergeUsuariosDesdeDrive(locales, remotos) {
     if (!existente) {
       base.push(ru);
       indice.set(ru.id, ru); indice.set('u:' + norm(ru.usuario), ru);
-      agregados.push(ru.nombre || ru.usuario);
+      agregados.push((ru.nombre || ru.usuario) + (ru.borrado ? ' (en papelera)' : ''));
       continue;
     }
     if (existente.id === sesionId) continue;
     Object.assign(existente, ru);
+    /*La copia de Drive manda: si ahí la cuenta está activa, sale de la papelera*/
+    if (!ru.borrado) { delete existente.borrado; delete existente.borradoEl; delete existente.borradoPor; }
   }
   return { lista: base, agregados };
 }
