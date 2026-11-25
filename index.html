@@ -659,7 +659,7 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 .ocup-tbl .oc-fecha { width: 9.5%; }
 .ocup-tbl .oc-obs { width: 12.5%; }
 .ocup-tbl td.oc-coord, .ocup-tbl td.oc-fecha { white-space: nowrap; }
-/* ---------- Mapa 3D · Cámara (Calle A) ---------- */
+/* ---------- Mapa 3D · Cámara (6 módulos del plano real) ---------- */
 .mapa3d-bar { flex-wrap: wrap; gap: 8px; }
 .mapa3d-grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; align-items: start; }
 @media (max-width: 1023px) { .mapa3d-grid { grid-template-columns: 1fr; } }
@@ -3372,13 +3372,57 @@ function normKey(s) {
   return String(s == null ? '' : s).trim().toLowerCase().replace(/×/g, 'x').replace(/\s+/g, '');
 }
 function normCoord(s) { return String(s == null ? '' : s).trim(); }
-function isRackCoord(c) { return /^[AB][0-9][0-9]0$/.test(String(c || '')); }
+function isRackCoord(c) { return /^[A-F][0-9][0-9]0$/.test(String(c || '')); }
 function isCoord(c) { return String(c) === 'Piso' || isRackCoord(c); }
 
-/* Maestro de coordenadas: Rack A y B de 10 en 10 (100 c/u) + Piso */
+/* ---------- Plano real del depósito (MAPA_DEPOSITO_1914_ESCALA_REAL.xlsx) ----------
+   6 módulos A–F · 406 posiciones codificadas × 4 niveles = 1.624 ubicaciones.
+   Cada módulo es una franja doble: frente + pasillo de 2,00 m + dorso (4,40 m de fondo).
+   Numeración serpenteante: frente ascendente 000→… y dorso continuando descendente …→890.
+   Cruces de 2 m (sin posición): A dorso 680/690 · B/C frente 200/210 · B/C dorso 660/670 · D frente 200/210.
+   Módulos A–D a lo ancho (0–45 m); D-dorso, E y F en la mitad este (24–45 m). */
+const DEPOSITO_REAL = {
+  paso: 1.35, alturaNivel: 0.92,
+  modulos: [
+    { id: 'A', z: -7.5, pos: 88, metros: 46, este: false },
+    { id: 'B', z: 5.0, pos: 84, metros: 44, este: false },
+    { id: 'C', z: 17.5, pos: 84, metros: 44, este: false },
+    { id: 'D', z: 30.0, pos: 64, metros: 44, este: false },
+    { id: 'E', z: 42.5, pos: 44, metros: 22, este: true },
+    { id: 'F', z: 55.0, pos: 42, metros: 22, este: true },
+  ],
+  bloques: [
+    { id: 'Asup', mod: 'A', nombre: 'Módulo A · Frente (A000–A450)', desde: 'A000', hasta: 'A450', colIni: 0, z: -7.5 },
+    { id: 'Ainfizq', mod: 'A', nombre: 'Módulo A · Dorso oeste (A890–A700)', desde: 'A890', hasta: 'A700', colIni: 0, z: 1.0 },
+    { id: 'Ainfder', mod: 'A', nombre: 'Módulo A · Dorso este (A670–A460)', desde: 'A670', hasta: 'A460', colIni: 24, z: 1.0 },
+    { id: 'Bsupizq', mod: 'B', nombre: 'Módulo B · Frente oeste (B000–B190)', desde: 'B000', hasta: 'B190', colIni: 0, z: 5.0 },
+    { id: 'Bsupder', mod: 'B', nombre: 'Módulo B · Frente este (B220–B430)', desde: 'B220', hasta: 'B430', colIni: 24, z: 5.0 },
+    { id: 'Binfizq', mod: 'B', nombre: 'Módulo B · Dorso oeste (B870–B680)', desde: 'B870', hasta: 'B680', colIni: 0, z: 13.5 },
+    { id: 'Binfder', mod: 'B', nombre: 'Módulo B · Dorso este (B650–B440)', desde: 'B650', hasta: 'B440', colIni: 24, z: 13.5 },
+    { id: 'Csupizq', mod: 'C', nombre: 'Módulo C · Frente oeste (C000–C190)', desde: 'C000', hasta: 'C190', colIni: 0, z: 17.5 },
+    { id: 'Csupder', mod: 'C', nombre: 'Módulo C · Frente este (C220–C430)', desde: 'C220', hasta: 'C430', colIni: 24, z: 17.5 },
+    { id: 'Cinfizq', mod: 'C', nombre: 'Módulo C · Dorso oeste (C870–C680)', desde: 'C870', hasta: 'C680', colIni: 0, z: 26.0 },
+    { id: 'Cinfder', mod: 'C', nombre: 'Módulo C · Dorso este (C650–C440)', desde: 'C650', hasta: 'C440', colIni: 24, z: 26.0 },
+    { id: 'Dsupizq', mod: 'D', nombre: 'Módulo D · Frente oeste (D000–D190)', desde: 'D000', hasta: 'D190', colIni: 0, z: 30.0 },
+    { id: 'Dsupder', mod: 'D', nombre: 'Módulo D · Frente este (D220–D430)', desde: 'D220', hasta: 'D430', colIni: 24, z: 30.0 },
+    { id: 'Dinfder', mod: 'D', nombre: 'Módulo D · Dorso este (D650–D440)', desde: 'D650', hasta: 'D440', colIni: 24, z: 38.5 },
+    { id: 'Esup', mod: 'E', nombre: 'Módulo E · Frente (E000–E210)', desde: 'E000', hasta: 'E210', colIni: 24, z: 42.5 },
+    { id: 'Einf', mod: 'E', nombre: 'Módulo E · Dorso (E430–E220)', desde: 'E430', hasta: 'E220', colIni: 24, z: 51.0 },
+    { id: 'Fsup', mod: 'F', nombre: 'Módulo F · Frente (F200–F410)', desde: 'F200', hasta: 'F410', colIni: 24, z: 55.0 },
+    { id: 'Finf', mod: 'F', nombre: 'Módulo F · Dorso (F190–F000)', desde: 'F190', hasta: 'F000', colIni: 24, z: 63.5 },
+  ],
+};
+function bloqueCoords(b) {
+  const ini = Number(b.desde.slice(1)), fin = Number(b.hasta.slice(1));
+  const st = ini <= fin ? 10 : -10;
+  const out = [];
+  for (let v = ini; v !== fin + st; v += st) out.push(b.desde[0] + String(v).padStart(3, '0'));
+  return out;
+}
+/* Maestro de coordenadas: las 406 posiciones reales (módulos A–F) + Piso */
 function buildCoordList() {
   const list = [];
-  for (const r of ['A', 'B']) for (let i = 0; i < 100; i++) list.push(r + String(i * 10).padStart(3, '0'));
+  DEPOSITO_REAL.bloques.forEach(b => bloqueCoords(b).forEach(c => list.push(c)));
   list.push('Piso');
   return list;
 }
@@ -3914,7 +3958,7 @@ const VIEWS = [
   { id: 'cli', name: 'Clientes', icon: 'cli', sub: 'Maestro de clientes' },
   { id: 'prod', name: 'Productos', icon: 'prod', sub: 'Catálogo maestro de productos y SKUs' },
   { id: 'pal', name: 'Pallets Vacíos', icon: 'pal', sub: 'Control de pallets vacíos' },
-  { id: 'mapa3d', name: 'Mapa 3D', icon: 'map', sub: 'Cámara · Calles A y B' },
+  { id: 'mapa3d', name: 'Mapa 3D', icon: 'map', sub: 'Cámara · módulos A–F' },
   { id: 'reservas', name: 'Reservas', icon: 'lock', sub: 'Bloqueos de mercadería' },
   { id: 'reportes', name: 'Reportes', icon: 'chart', sub: 'Rotación y ocupación por período' },
   { id: 'auditoria', name: 'Auditoría', icon: 'hist', sub: 'Historial de cambios' },
@@ -4651,7 +4695,7 @@ function emptyState(msg, cta) {
 /* ============================================================
    PANEL
    ============================================================ */
-const MAP_F = { rack: 'AB', estado: 'todos', q: '' };
+const MAP_F = { rack: 'todos', estado: 'todos', q: '' };
 
 RENDERERS.panel = function () {
   const el = $('#view-panel');
@@ -4676,9 +4720,9 @@ RENDERERS.panel = function () {
       '<div class="card"><h2 class="card-title">' + ICONS.sku + ' Stock por producto <span class="right" id="panelTotalCajas"></span></h2><div id="panelProdTbl"></div></div>' +
       '<div class="card"><h2 class="card-title">' + ICONS.ship + ' Historial de contenedores / DUA <span class="right muted" style="text-transform:none">Ingresos por contenedor</span></h2><div id="panelCont"></div></div>' +
     '</div>' +
-    '<div class="card"><h2 class="card-title">' + ICONS.map + ' Mapa visual de racks · disposición real <span class="right muted" style="text-transform:none">Cenital según el plano del depósito (Calle A con paso central transversal + Calle B espalda con espalda) · misma geometría que el Mapa 3D · clic en una posición para el detalle y registrar salidas o traslados</span></h2>' +
+    '<div class="card"><h2 class="card-title">' + ICONS.map + ' Mapa visual de racks · disposición real <span class="right muted" style="text-transform:none">Cenital según el plano a escala del depósito: 6 módulos A–F (406 posiciones × 4 niveles) con pasillo central de 2 m, paso transversal y mitad este · misma geometría que el Mapa 3D · clic en una posición para el detalle y registrar salidas o traslados</span></h2>' +
       '<div class="rack-tools">' +
-        '<label style="font-size:12px;font-weight:700;color:var(--text-2)">Calle <select id="mapRack"><option value="AB">Ambas</option><option value="A">Calle A</option><option value="B">Calle B</option></select></label>' +
+        '<label style="font-size:12px;font-weight:700;color:var(--text-2)">Módulo <select id="mapRack"><option value="todos">Todo el depósito</option><option value="A">Módulo A</option><option value="B">Módulo B</option><option value="C">Módulo C</option><option value="D">Módulo D</option><option value="E">Módulo E</option><option value="F">Módulo F</option><option value="P">Piso</option></select></label>' +
         '<label style="font-size:12px;font-weight:700;color:var(--text-2)">Estado <select id="mapEstado">' +
           '<option value="todos">Todos</option><option value="ocupada">Ocupadas</option><option value="libre">Libres</option><option value="compartida">Compartidas</option><option value="revisar">Revisar saldo</option>' +
         '</select></label>' +
@@ -4717,7 +4761,7 @@ RENDERERS.panel = function () {
       MAPA3D.deseado.target = { x: p.x, y: 1.2, z: p.z };
       MAPA3D.deseado.radius = 22;
       toast('Mapa 3D', 'ok', 'Posición ' + p.coord + ' centrada en el mapa.');
-    } else toast('Mapa 3D', 'ok', 'Vista general de Calles A y B.');
+    } else toast('Mapa 3D', 'ok', 'Vista general de módulos A–F.');
   };
 };
 
@@ -4767,9 +4811,9 @@ function renderPanelCont() {
 }
 
 /* ---------- Mapa de racks ---------- */
-/* Mini-mapa cenital del Panel — MISMA geometría que el Mapa 3D (MAPA3D + mapa3dPosiciones):
-   el dibujo sale de los datos reales del depósito (plano de Excel: Calle A superior e
-   inferiores con paso central transversal + Calle B espalda con espalda), no de una grilla genérica. */
+/* Mini-mapa cenital del Panel — MISMA geometría que el Mapa 3D (DEPOSITO_REAL + mapa3dPosiciones):
+   el dibujo sale del plano real del depósito (6 módulos A–F con pasillo de 2 m, paso central
+   transversal y mitad este para D-dorso/E/F), no de una grilla genérica. */
 function renderRackMap() {
   const cont = $('#mapContainer');
   if (!cont) return;
@@ -4777,18 +4821,21 @@ function renderRackMap() {
   const q = normCoord(MAP_F.q || '').trim().toUpperCase();
   const match = coord => !q || (coord === 'Piso' ? 'PISO'.includes(q) : coord.includes(q));
   const clase = p => p.estado === 'REVISAR' ? 'revisar' : p.estado === 'COMPARTIDO' ? 'compartida' : p.estado === 'OCUPADO' ? 'ocupada' : 'libre';
-  const pos1 = mapa3dPosiciones().filter(p => p.nivel === 1 && (MAP_F.rack === 'AB' || p.coord[0] === MAP_F.rack));
+  const pos1 = mapa3dPosiciones().filter(p => p.nivel === 1 && (MAP_F.rack === 'todos' || (MAP_F.rack === 'P' ? p.coord === 'Piso' : p.coord[0] === MAP_F.rack)));
   const stats = { ocupada: 0, compartida: 0, revisar: 0, libre: 0, res: 0 };
   pos1.forEach(p => { const c = clase(p); if (c === 'compartida') { stats.compartida++; stats.ocupada++; } else stats[c]++; if (reservasDeCoord(p.coord).length) stats.res++; });
-  $('#mapCalleTitle').textContent = (MAP_F.rack === 'A' ? 'Calle A' : MAP_F.rack === 'B' ? 'Calle B' : 'Calle A + Calle B') + ' · vista cenital';
+  $('#mapCalleTitle').textContent = (MAP_F.rack === 'todos' ? 'Todo el depósito · módulos A–F' : MAP_F.rack === 'P' ? 'Zona especial · Piso' : 'Módulo ' + MAP_F.rack) + ' · vista cenital';
   $('#mapCalleStats').innerHTML = stats.ocupada + ' ocupadas · ' + stats.compartida + ' compartidas · ' + stats.revisar + ' a revisar' + (stats.res ? ' · <b style="color:var(--warn)">⚑ ' + stats.res + ' con reserva</b>' : '') + ' · ' + stats.libre + ' libres';
 
-  /* zonas fijas del plano (coordenadas de mundo, idénticas a las del Mapa 3D) */
+  /* zonas del plano real: un pasillo de 2,00 m por módulo (A–F), paso central
+     transversal de 2 m entre A y D, y mitad este para D-dorso, E y F */
+  const mods = MAPA3D.modulos;
   const paso = MAPA3D.paso;
-  const zSup = MAPA3D.filaZ.sup, zInf = MAPA3D.filaZ.inf, zB = MAPA3D.filaZ.b;
-  const minX = Math.min(...pos1.map(p => p.x)) - paso, maxX = Math.max(...pos1.map(p => p.x)) + paso;
-  const minZ = zSup - 3.1, maxZ = zB + 3.5;
-  const xPasoIzq = colX(19) + paso / 2 + 0.15, xPasoDer = colX(24) - paso / 2 - 0.15; /* columnas 20–23 sin posiciones: paso central */
+  const xFullI = colX(0) - 1, xFullD = colX(45) + 1, xEsteI = colX(24) - MAPA3D.paso / 2;
+  /* con filtro Piso (sin posiciones de rack) el mapa mantiene su extensión completa */
+  const xs = pos1.map(p => p.x);
+  const minX = (xs.length ? Math.min(...xs) : colX(0)) - paso, maxX = (xs.length ? Math.max(...xs) : colX(45)) + paso;
+  const minZ = mods[0].z - 2.3, maxZ = mods[5].z + 8.5 + 2.3;
   const bw = paso * 0.82, bd = 0.95;
   const COL = {
     libre: { f: 'rgba(100,116,139,.30)', s: 'rgba(148,163,184,.55)' },
@@ -4797,17 +4844,20 @@ function renderRackMap() {
     revisar: { f: 'rgba(248,113,113,.80)', s: 'rgba(255,255,255,.55)' },
   };
   let g = '<svg class="rm-svg" viewBox="' + (minX - 1.6) + ' ' + minZ + ' ' + (maxX - minX + 3.2) + ' ' + (maxZ - minZ) + '" role="img" aria-label="Mapa cenital del depósito">' +
-    '<style>.rm-cell{cursor:pointer}.rm-cell:hover rect{stroke:#f8fafc;stroke-width:.1}.rm-lab{font:600 .72px system-ui,sans-serif;fill:#94a3b8;letter-spacing:.06px}</style>' +
-    '<rect x="' + minX + '" y="' + (zSup + bd / 2 + 0.12) + '" width="' + (maxX - minX) + '" height="' + (zInf - bd / 2 - 0.12 - (zSup + bd / 2 + 0.12)) + '" fill="rgba(56,189,248,.06)"/>' +
-    '<text x="' + ((minX + maxX) / 2) + '" y="0" text-anchor="middle" class="rm-lab" style="font-size:.9px">PASILLO A · circulación</text>' +
-    '<rect x="' + xPasoIzq + '" y="' + (zInf - bd / 2 - 0.35) + '" width="' + (xPasoDer - xPasoIzq) + '" height="' + (zB + bd / 2 + 0.35 - (zInf - bd / 2 - 0.35)) + '" fill="rgba(250,204,21,.06)" stroke="rgba(250,204,21,.45)" stroke-dasharray=".35 .3" rx=".3"/>' +
-    '<text x="' + ((xPasoIzq + xPasoDer) / 2) + '" y="' + ((zInf + zB) / 2 + 0.3) + '" text-anchor="middle" class="rm-lab" style="font-size:.72px;fill:#eab308">PASO CENTRAL</text>' +
-    '<rect x="' + minX + '" y="' + (zB + bd / 2 + 0.1) + '" width="' + (maxX - minX) + '" height="1.4" fill="rgba(56,189,248,.06)"/>' +
-    '<text x="' + ((minX + maxX) / 2) + '" y="' + (zB + bd / 2 + 1.0) + '" text-anchor="middle" class="rm-lab" style="font-size:.9px">PASILLO B · circulación</text>' +
-    '<text x="' + (minX + 0.2) + '" y="' + (zSup - bd / 2 - 1.05) + '" class="rm-lab">CALLE A · Bloque Superior</text>' +
-    '<text x="' + (minX + 0.2) + '" y="' + (zInf - bd / 2 - 1.4) + '" class="rm-lab">CALLE A · Inferiores</text>' +
-    '<text x="' + (minX + 0.2) + '" y="' + (zB - bd / 2 - 0.75) + '" class="rm-lab">CALLE B</text>';
-  pos1.forEach(p => {
+    '<style>.rm-cell{cursor:pointer}.rm-cell:hover rect{stroke:#f8fafc;stroke-width:.1}.rm-lab{font:600 .72px system-ui,sans-serif;fill:#94a3b8;letter-spacing:.06px}</style>';
+  mods.forEach(m => {
+    const x1 = m.este ? xEsteI : xFullI;
+    const zA = m.z + 0.95, zB = m.z + 8.5 - 0.95;
+    g += '<rect x="' + x1 + '" y="' + zA + '" width="' + (xFullD - x1) + '" height="' + (zB - zA) + '" fill="rgba(56,189,248,.06)"/>' +
+      '<text x="' + (x1 + (xFullD - x1) * 0.3) + '" y="' + ((zA + zB) / 2 + 0.3) + '" text-anchor="middle" class="rm-lab" style="font-size:.9px">PASILLO ' + m.id + ' · 2,00 m</text>' +
+      '<text x="' + (x1 + 0.2) + '" y="' + (m.z - 1.15) + '" class="rm-lab">MÓDULO ' + m.id + ' · ' + m.metros + ' m · ' + m.pos + ' posiciones' + (m.este ? ' · mitad este' : '') + '</text>';
+  });
+  const px1 = colX(20) - paso / 2, px2 = colX(23) + paso / 2;
+  g += '<rect x="' + px1 + '" y="' + (mods[0].z + 0.95) + '" width="' + (px2 - px1) + '" height="' + (mods[3].z + 0.95 - (mods[0].z + 0.95)) + '" fill="rgba(250,204,21,.07)" stroke="rgba(250,204,21,.3)" stroke-width=".06"/>' +
+    '<text x="' + ((px1 + px2) / 2) + '" y="' + ((mods[0].z + mods[3].z) / 2 + 8.5) + '" text-anchor="middle" class="rm-lab" style="font-size:.72px;fill:#eab308" transform="rotate(90 ' + ((px1 + px2) / 2) + ' ' + ((mods[0].z + mods[3].z) / 2 + 8.5) + ')">PASO CENTRAL · 2 m</text>' +
+    '<line x1="' + xEsteI + '" y1="' + (mods[3].z + 8.5) + '" x2="' + xEsteI + '" y2="' + (mods[5].z + 8.5 + 0.9) + '" stroke="rgba(148,163,184,.4)" stroke-width=".07" stroke-dasharray=".5 .4"/>' +
+    '<text x="' + (xEsteI + 0.25) + '" y="' + (mods[3].z + 10.4) + '" class="rm-lab" style="fill:#94a3b8">MITAD ESTE (24–45 m): D-dorso · E · F</text>';
+    pos1.forEach(p => {
     const c = clase(p);
     const nItems = itemsActivos(p.coord).length;
     const nRes = reservasDeCoord(p.coord).length;
@@ -4832,7 +4882,7 @@ function renderRackMap() {
   const pisoCls = pisoStock < 0 ? 'revisar' : pisoItems.length > 1 ? 'compartida' : pisoStock > 0 ? 'ocupada' : 'libre';
   const pisoDim = (!match('Piso') || (MAP_F.estado !== 'todos' && MAP_F.estado !== pisoCls)) ? 'opacity:.18;' : '';
   cont.innerHTML = g + '</svg>' +
-    (MAP_F.rack === 'AB' ? '<div class="rack-block" style="margin-top:12px"><div class="rack-head"><h3>Zona especial</h3><span class="muted">Piso</span></div>' +
+    (MAP_F.rack === 'todos' || MAP_F.rack === 'P' ? '<div class="rack-block" style="margin-top:12px"><div class="rack-head"><h3>Zona especial</h3><span class="muted">Piso</span></div>' +
       '<div class="rack-grid" style="grid-template-columns:1fr"><div class="cell piso ' + pisoCls + '" data-coord="Piso" style="' + pisoDim + '">' +
       '<span class="c-coord">PISO</span><span class="c-qty">' + (pisoStock !== 0 ? fmtInt(pisoStock) + ' cajas' : 'Libre') + '</span>' +
       (pisoItems.length > 1 ? '<span class="c-flag">×' + pisoItems.length + '</span>' : '') +
@@ -4868,7 +4918,7 @@ RENDERERS.stock = function (patch) {
     '<div class="filterbar">' +
       '<div class="search-box">' + ICONS.search + '<input id="stkQ" placeholder="Filtrar por coordenada, cliente, producto…" value="' + esc(STK_F.q) + '"></div>' +
       '<select id="stkEstado"><option value="todos">Todos los estados</option><option value="OCUPADO">OCUPADO</option><option value="LIBRE">LIBRE</option><option value="REVISAR SALDO">REVISAR SALDO</option><option value="COMPARTIDO">PALET COMPARTIDO</option></select>' +
-      '<select id="stkRack"><option value="todos">Todos los racks</option><option value="A">Rack A</option><option value="B">Rack B</option><option value="Piso">Piso</option></select>' +
+      '<select id="stkRack"><option value="todos">Todos los racks</option><option value="A">Rack A</option><option value="B">Rack B</option><option value="C">Rack C</option><option value="D">Rack D</option><option value="E">Rack E</option><option value="F">Rack F</option><option value="Piso">Piso</option></select>' +
       '<span class="filter-count" id="stkCount"></span>' +
     '</div>' +
     '<div id="stockTbl"></div>';
@@ -5045,24 +5095,17 @@ function imprimirStockOcupados() {
    · Bloque Inferior Izquierdo A890–A700 (20) · PASO CENTRAL transversal (4
      columnas: A680/A690 no existen como posiciones) · Inferior Derecho A670–A460 (22)
    · La fila 12 del plano es la separación física entre racks espalda con
-     espalda (la Calle B queda del otro lado y se agregará más adelante).
+     y el dorso continúa la numeración serpenteante; D-dorso, E y F en la mitad este).
    Alturas: cada coordenada puede tener 1–6 niveles físicos (DB.niveles),
    mapeados desde el propio WMS con el modal «Mapear alturas» (permiso
    Catálogos) y sincronizados por Drive. Los movimientos llevan nivel
    (m.nivel, 1 por defecto) y el stock por nivel se deriva de los
    movimientos, como el resto del sistema. Solo lectura para el invitado. */
 const MAPA3D = {
-  paso: 1.35, alturaNivel: 0.92,
-  filaZ: { sup: -7.5, inf: 7.5, b: 12.4 }, /* b: Calle B, espalda con espalda con los inferiores de Calle A (separación física) */
-  bloques: [
-    { id: 'sup', nombre: 'Bloque Superior · Calle A', desde: 'A000', hasta: 'A450', fila: 'sup', colIni: 0 },
-    { id: 'infizq', nombre: 'Inferior Izquierdo · Calle A', desde: 'A890', hasta: 'A700', fila: 'inf', colIni: 0 },
-    { id: 'infder', nombre: 'Inferior Derecho · Calle A', desde: 'A670', hasta: 'A460', fila: 'inf', colIni: 24 },
-    { id: 'bizq', nombre: 'Calle B · Oeste', desde: 'B000', hasta: 'B190', fila: 'b', colIni: 0 },
-    { id: 'bder', nombre: 'Calle B · Este', desde: 'B220', hasta: 'B430', fila: 'b', colIni: 24 },
-  ],
-  estado: { theta: 0.42, phi: Math.PI / 3.15, radius: 52, target: { x: 0, y: 1.2, z: 2.5 }, filtro: 'TODOS', seleccion: null, resaltado: null, mostrarNumeros: true, mostrarEtiquetas: true },
-  deseado: { theta: 0.42, phi: Math.PI / 3.15, radius: 52, target: { x: 0, y: 1.2, z: 2.5 } },
+  paso: DEPOSITO_REAL.paso, alturaNivel: DEPOSITO_REAL.alturaNivel,
+  bloques: DEPOSITO_REAL.bloques, modulos: DEPOSITO_REAL.modulos,
+  estado: { theta: 0.42, phi: Math.PI / 3.15, radius: 100, target: { x: 0, y: 1.2, z: 28 }, filtro: 'TODOS', seleccion: null, resaltado: null, mostrarNumeros: true, mostrarEtiquetas: true },
+  deseado: { theta: 0.42, phi: Math.PI / 3.15, radius: 100, target: { x: 0, y: 1.2, z: 28 } },
   raf: null,
 };
 const M3_COLORES = {
@@ -5072,13 +5115,7 @@ const M3_COLORES = {
   REVISAR: { top: '#f87171', left: '#dc2626', right: '#b91c1c', stroke: 'rgba(255,255,255,.5)', alpha: .96 },
   SEL: { top: '#7dd3fc', left: '#0284c7', right: '#0369a1', stroke: '#ffffff', alpha: 1 },
 };
-function mapa3dCoordenadasBloque(b) {
-  const ini = Number(b.desde.slice(1)), fin = Number(b.hasta.slice(1));
-  const pasoN = ini <= fin ? 10 : -10;
-  const out = [];
-  for (let v = ini; v !== fin + pasoN; v += pasoN) out.push(b.desde[0] + String(v).padStart(3, '0'));
-  return out;
-}
+function mapa3dCoordenadasBloque(b) { return bloqueCoords(b); }
 function mapa3dTodasCoords() { return MAPA3D.bloques.flatMap(b => mapa3dCoordenadasBloque(b)); }
 function colX(col) { return (col - 22.5) * MAPA3D.paso; }
 function nivelesDe(coord) {
@@ -5132,7 +5169,7 @@ function mapa3dPosiciones() {
         const partidas = stock > 0 ? partidasNivel(coord, lvl) : [];
         out.push({
           coord, nivel: lvl, niveles: n, bloque: b, col: b.colIni + i,
-          x: colX(b.colIni + i), y: 0.45 + (lvl - 1) * MAPA3D.alturaNivel, z: MAPA3D.filaZ[b.fila],
+          x: colX(b.colIni + i), y: 0.45 + (lvl - 1) * MAPA3D.alturaNivel, z: b.z,
           stock, partidas,
           estado: stock < 0 ? 'REVISAR' : stock > 0 ? (partidas.length > 1 ? 'COMPARTIDO' : 'OCUPADO') : 'LIBRE',
         });
@@ -5169,7 +5206,7 @@ function openMapearAlturasModal() {
   };
   openModal({
     perm: 'abm',
-    title: 'Mapear alturas · Calles A y B',
+    title: 'Mapear alturas · módulos A–F',
     sub: 'Define cuántos niveles físicos tiene cada posición. El Mapa 3D y el campo «Nivel» de los movimientos se actualizan al instante; los cambios se guardan y sincronizan con Drive.',
     body:
       '<div class="alert info">' + ICONS.alert + '<div>Aplicá primero los niveles a un bloque completo (ej. Bloque Superior: 3) y después ajustá coordenadas individuales si alguna difiere. El nivel 1 es la base. Las posiciones sin mapeo usan el <b>nivel por defecto</b>.</div></div>' +
@@ -5232,14 +5269,14 @@ RENDERERS.mapa3d = function () {
   const chip = (f, txt) => '<button class="btn sm ' + (e.filtro === f ? 'primary' : 'ghost') + '" data-f="' + f + '">' + txt + '</button>';
   const preset = (c, txt) => '<button class="btn sm ghost" data-cam="' + c + '">' + txt + '</button>';
   el.innerHTML = viewHead('Mapa 3D · Cámara',
-      'Geometría del plano de Excel: Calle A (Superior A000–A450 · inferiores A890–A700 y A670–A460) y Calle B (B000–B190 y B220–B430) espalda con espalda, unidas por el paso central. Alturas mapeables por coordenada; solo lectura.',
+      'Geometría del plano real a escala del depósito (MAPA_DEPOSITO_1914_ESCALA_REAL.xlsx): 6 módulos A–F con frente + pasillo de 2 m + dorso cada uno; A–D a lo ancho (0–45 m) y D-dorso, E y F en la mitad este (24–45 m), unidos por el paso central de 2 m. 406 posiciones × 4 niveles = 1.624 ubicaciones. Alturas mapeables por coordenada; solo lectura.',
       (puede('abm') ? '<button class="btn" id="m3Mapear">' + ICONS.gear + ' Mapear alturas</button>' : '')) +
     '<div class="filterbar mapa3d-bar">' +
       '<div class="search-box">' + ICONS.search + '<input id="m3Q" placeholder="Buscar coordenada (ej. A000, A150, A890)…"></div>' +
       '<button class="btn sm primary" id="m3Buscar">Ubicar</button>' +
       '<button class="btn sm ghost" id="m3Limpiar">Limpiar</button>' +
       '<span style="display:inline-flex;gap:6px;flex-wrap:wrap">' + chip('TODOS', 'Todos') + chip('OCUPADO', 'Ocupados') + chip('LIBRE', 'Libres') + chip('COMPARTIDO', 'Compartidos') + '</span>' +
-      '<span style="display:inline-flex;gap:6px;flex-wrap:wrap">' + preset('general', 'Vista general') + preset('callea', 'Calle A') + preset('calleb', 'Calle B') + preset('cenital', 'Cenital') + '</span>' +
+      '<span style="display:inline-flex;gap:6px;flex-wrap:wrap">' + preset('general', 'Vista general') + preset('modA', 'A') + preset('modB', 'B') + preset('modC', 'C') + preset('modD', 'D') + preset('modE', 'E') + preset('modF', 'F') + preset('cenital', 'Cenital') + '</span>' +
       '<span style="display:inline-flex;gap:11px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text-2)">' +
         '<label class="m3-tgl"><input type="checkbox" id="m3TNum"' + (e.mostrarNumeros ? ' checked' : '') + '> Números de posición</label>' +
         '<label class="m3-tgl"><input type="checkbox" id="m3TLabels"' + (e.mostrarEtiquetas ? ' checked' : '') + '> Etiquetas</label>' +
@@ -5274,7 +5311,7 @@ RENDERERS.mapa3d = function () {
           '<div><div class="lbl">Niveles con stock</div><div class="val">' + fmtInt(ocupadas) + '</div></div>' +
           '<div><div class="lbl">Niveles libres</div><div class="val">' + fmtInt(fisicos - ocupadas) + '</div></div>' +
         '</div>' +
-        '<p style="font-size:11.5px;color:var(--text-3);margin-top:10px;line-height:1.5">Calle A y Calle B con alturas mapeables («Mapear alturas», solo administrador): toda posición sin mapeo muestra 4 niveles por defecto (configurable en el modal); los movimientos registran el nivel con el campo «Nivel» del formulario.</p>';
+        '<p style="font-size:11.5px;color:var(--text-3);margin-top:10px;line-height:1.5">Los 6 módulos (A–F) con alturas mapeables («Mapear alturas», solo administrador): toda posición sin mapeo muestra 4 niveles por defecto (configurable en el modal); los movimientos registran el nivel con el campo «Nivel» del formulario.</p>';
       return;
     }
     const n = item.niveles;
@@ -5361,24 +5398,28 @@ RENDERERS.mapa3d = function () {
     const bg = ctx.createLinearGradient(0, 0, 0, h);
     bg.addColorStop(0, '#0b1120'); bg.addColorStop(1, '#1e293b');
     ctx.clearRect(0, 0, w, h); ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
-    poligono([proyecta(-34, 0, -13, w, h), proyecta(34, 0, -13, w, h), proyecta(34, 0, 26, w, h), proyecta(-34, 0, 26, w, h)], 'rgba(30,41,59,.75)', 'rgba(148,163,184,.25)');
+    poligono([proyecta(-34, 0, -10, w, h), proyecta(34, 0, -10, w, h), proyecta(34, 0, 66, w, h), proyecta(-34, 0, 66, w, h)], 'rgba(30,41,59,.75)', 'rgba(148,163,184,.25)');
     /* rejilla sutil de referencia */
     ctx.save(); ctx.strokeStyle = 'rgba(148,163,184,.09)'; ctx.lineWidth = 1;
-    for (let gx = -33.75; gx <= 33.75; gx += 6.75) { const a = proyecta(gx, 0, -13, w, h), b2 = proyecta(gx, 0, 26, w, h); ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b2.sx, b2.sy); ctx.stroke(); }
-    for (let gz = -13; gz <= 26; gz += 6.5) { const a = proyecta(-34, 0, gz, w, h), b2 = proyecta(34, 0, gz, w, h); ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b2.sx, b2.sy); ctx.stroke(); }
+    for (let gx = -33.75; gx <= 33.75; gx += 6.75) { const a = proyecta(gx, 0, -10, w, h), b2 = proyecta(gx, 0, 66, w, h); ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b2.sx, b2.sy); ctx.stroke(); }
+    for (let gz = -10; gz <= 66; gz += 6.5) { const a = proyecta(-34, 0, gz, w, h), b2 = proyecta(34, 0, gz, w, h); ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b2.sx, b2.sy); ctx.stroke(); }
     ctx.restore();
-    poligono([proyecta(-32, .02, -3.1, w, h), proyecta(32, .02, -3.1, w, h), proyecta(32, .02, 3.1, w, h), proyecta(-32, .02, 3.1, w, h)], 'rgba(29,78,216,.28)', 'rgba(96,165,250,.45)'); /* Pasillo A */
-    poligono([proyecta(-32, .02, 13.5, w, h), proyecta(32, .02, 13.5, w, h), proyecta(32, .02, 19.5, w, h), proyecta(-32, .02, 19.5, w, h)], 'rgba(29,78,216,.28)', 'rgba(96,165,250,.45)'); /* Pasillo B */
-    const px1 = colX(20) - MAPA3D.paso / 2, px2 = colX(23) + MAPA3D.paso / 2; /* paso central transversal: une el Pasillo A con el Pasillo B */
-    poligono([proyecta(px1, .02, 3.1, w, h), proyecta(px2, .02, 3.1, w, h), proyecta(px2, .02, 19.5, w, h), proyecta(px1, .02, 19.5, w, h)], 'rgba(29,78,216,.18)', 'rgba(96,165,250,.3)');
-    /* separación física entre racks espalda con espalda (fila 12 del plano) */
-    const sepA = proyecta(colX(0) - 0.8, 0.02, 10, w, h), sepB = proyecta(colX(45) + 0.8, 0.02, 10, w, h);
+    /* pasillo central de 2,00 m por módulo (A–F); E y F solo en la mitad este */
+    const xFullI = colX(0) - 1, xFullD = colX(45) + 1, xEsteI = colX(24) - MAPA3D.paso / 2;
+    MAPA3D.modulos.forEach(m => {
+      const x1 = m.este ? xEsteI : xFullI, zA = m.z + 0.95, zB = m.z + 8.5 - 0.95;
+      poligono([proyecta(x1, .02, zA, w, h), proyecta(xFullD, .02, zA, w, h), proyecta(xFullD, .02, zB, w, h), proyecta(x1, .02, zB, w, h)], 'rgba(29,78,216,.28)', 'rgba(96,165,250,.45)');
+    });
+    const px1 = colX(20) - MAPA3D.paso / 2, px2 = colX(23) + MAPA3D.paso / 2; /* paso central transversal de 2 m: cruza dorso de A y módulos B, C y D frente */
+    poligono([proyecta(px1, .02, MAPA3D.modulos[0].z + 0.95, w, h), proyecta(px2, .02, MAPA3D.modulos[0].z + 0.95, w, h), proyecta(px2, .02, MAPA3D.modulos[3].z + 0.95, w, h), proyecta(px1, .02, MAPA3D.modulos[3].z + 0.95, w, h)], 'rgba(29,78,216,.18)', 'rgba(96,165,250,.3)');
+    /* límite de la mitad este: D-dorso, E y F ocupan 24–45 m (según el plano a escala) */
+    const sepA = proyecta(xEsteI, 0.02, MAPA3D.modulos[3].z + 8.5, w, h), sepB = proyecta(xEsteI, 0.02, MAPA3D.modulos[5].z + 8.5 + 0.9, w, h);
     ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = 'rgba(148,163,184,.4)'; ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.moveTo(sepA.sx, sepA.sy); ctx.lineTo(sepB.sx, sepB.sy); ctx.stroke(); ctx.restore();
     /* plataformas base por bloque */
     MAPA3D.bloques.forEach(b => {
       const coords = mapa3dCoordenadasBloque(b);
-      const x1 = colX(b.colIni) - 0.78, x2 = colX(b.colIni + coords.length - 1) + 0.78, z = MAPA3D.filaZ[b.fila];
+      const x1 = colX(b.colIni) - 0.78, x2 = colX(b.colIni + coords.length - 1) + 0.78, z = b.z;
       poligono([proyecta(x1, .01, z - 0.82, w, h), proyecta(x2, .01, z - 0.82, w, h), proyecta(x2, .01, z + 0.82, w, h), proyecta(x1, .01, z + 0.82, w, h)], 'rgba(51,65,85,.55)', 'rgba(148,163,184,.2)', 1);
     });
     /* números de posición cada 5 coordenadas (orientación en el rack) */
@@ -5386,7 +5427,7 @@ RENDERERS.mapa3d = function () {
       ctx.font = '600 9px ' + getComputedStyle(document.body).fontFamily;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(148,163,184,.85)';
       MAPA3D.bloques.forEach(b => {
-        const zTxt = b.fila === 'sup' ? -9.7 : b.fila === 'inf' ? 5.9 : 14.9;
+        const zTxt = b.z - 1.7;
         mapa3dCoordenadasBloque(b).forEach((c, i) => {
           if (i % 5) return;
           const p = proyecta(colX(b.colIni + i), 0.02, zTxt, w, h);
@@ -5412,14 +5453,12 @@ RENDERERS.mapa3d = function () {
     });
     MAPA3D._hits = hits;
     if (e.mostrarEtiquetas) {
-      etiqueta('PASILLO A · CIRCULACIÓN', 0, 0.5, 0, w, h, '#93c5fd');
-      etiqueta('BLOQUE SUPERIOR · A000 → A450', 0, 3.0, -7.5, w, h, '#93c5fd');
-      etiqueta('A890 → A700', colX(14), 2.5, 7.5, w, h, '#cbd5e1');
-      etiqueta('A670 → A460', colX(34.5), 2.3, 7.5, w, h, '#cbd5e1');
-      etiqueta('CALLE B · B000 → B430', colX(2), 3.1, 12.4, w, h, '#93c5fd');
-      etiqueta('PASILLO B · CIRCULACIÓN', 0, 0.5, 16.5, w, h, '#93c5fd');
-      etiqueta('PASO CENTRAL', (px1 + px2) / 2, 0.35, 4.3, w, h, '#93c5fd', '600 10px ' + getComputedStyle(document.body).fontFamily);
-      etiqueta('SEPARACIÓN FÍSICA · ESPALDA CON ESPALDA', colX(42), 0.1, 10.9, w, h, '#94a3b8', '600 9.5px ' + getComputedStyle(document.body).fontFamily);
+      MAPA3D.modulos.forEach(m => {
+        etiqueta('MÓDULO ' + m.id + ' · ' + m.metros + ' m · ' + m.pos + ' posiciones' + (m.este ? ' · mitad este' : ''), m.este ? colX(33) : colX(4), 2.8, m.z, w, h, '#93c5fd');
+        etiqueta('PASILLO ' + m.id + ' · 2 m', colX(41), 0.45, m.z + 4.25, w, h, '#93c5fd', '600 9.5px ' + getComputedStyle(document.body).fontFamily);
+      });
+      etiqueta('PASO CENTRAL · CRUCE 2 m', (px1 + px2) / 2, 0.35, 24.4, w, h, '#93c5fd', '600 10px ' + getComputedStyle(document.body).fontFamily);
+      etiqueta('MITAD ESTE (24–45 m)', colX(34.5), 0.1, 63.2, w, h, '#94a3b8', '600 9.5px ' + getComputedStyle(document.body).fontFamily);
     }
   };
   const frame = () => {
@@ -5541,9 +5580,9 @@ RENDERERS.mapa3d = function () {
   const irACoordenada = raw => {
     const s = String(raw || '').trim().toUpperCase();
     if (!s) { e.resaltado = null; feedback('Ingresá una coordenada válida (ej. A000, A150, A890).'); return; }
-    const norm = /^[AB]/.test(s) ? s : 'A' + s.padStart(3, '0');
+    const norm = /^[A-F]/.test(s) ? s : 'A' + s.padStart(3, '0');
     const matches = posiciones.filter(p => p.coord === norm);
-    if (!matches.length) { e.resaltado = null; feedback('<span style="color:var(--danger)">No se encontró «' + esc(norm) + '» en el mapa (Calle A y Calle B).</span>'); return; }
+    if (!matches.length) { e.resaltado = null; feedback('<span style="color:var(--danger)">No se encontró «' + esc(norm) + '» en el mapa (módulos A–F).</span>'); return; }
     e.resaltado = norm;
     const principal = matches.find(p => p.estado !== 'LIBRE') || matches[0];
     seleccionar(principal);
@@ -5563,11 +5602,16 @@ RENDERERS.mapa3d = function () {
     $$('#view-mapa3d [data-f]').forEach(b2 => b2.className = 'btn sm ' + (b2.dataset.f === e.filtro ? 'primary' : 'ghost'));
   });
   const aplicarPreset = c => {
+    if (c && c.indexOf('mod') === 0) {
+      const m = MAPA3D.modulos[c.slice(3).charCodeAt(0) - 65];
+      if (!m) return;
+      de.radius = 44; de.phi = Math.PI / 3.3; de.theta = 0.2;
+      de.target = { x: m.este ? colX(34.5) : 0, y: 1.3, z: m.z + 4.25 };
+      return;
+    }
     const P = {
-      general: { radius: 52, phi: Math.PI / 3.15, theta: 0.42, target: { x: 0, y: 1.2, z: 2.5 } },
-      callea: { radius: 38, phi: Math.PI / 3.3, theta: 0.2, target: { x: 0, y: 1.3, z: 0 } },
-      calleb: { radius: 34, phi: Math.PI / 3.25, theta: -0.18, target: { x: 0, y: 1.0, z: 13.5 } },
-      cenital: { radius: 64, phi: 0.14, theta: 0, target: { x: 0, y: 0.5, z: 5 } },
+      general: { radius: 100, phi: Math.PI / 3.15, theta: 0.42, target: { x: 0, y: 1.2, z: 28 } },
+      cenital: { radius: 140, phi: 0.14, theta: 0, target: { x: 0, y: 0.5, z: 28 } },
     }[c];
     if (!P) return;
     de.radius = P.radius; de.phi = P.phi; de.theta = P.theta; de.target = P.target;
@@ -5576,7 +5620,7 @@ RENDERERS.mapa3d = function () {
   $('#m3TNum').onchange = ev => { e.mostrarNumeros = ev.target.checked; };
   $('#m3TLabels').onchange = ev => { e.mostrarEtiquetas = ev.target.checked; };
   $('#m3Zin').onclick = () => { de.radius = Math.max(14, de.radius - 5); };
-  $('#m3Zout').onclick = () => { de.radius = Math.min(80, de.radius + 5); };
+  $('#m3Zout').onclick = () => { de.radius = Math.min(170, de.radius + 5); };
   $('#m3Zreset').onclick = () => { aplicarPreset('general'); };
 };
 
@@ -6398,14 +6442,19 @@ function selHTML(id, options, selected) {
 }
 function coordOptions(selected, opts) {
   opts = opts || {};
-  const groups = { A: [], B: [] };
+  const groups = {};
   for (const c of COORDS) {
     if (c === 'Piso') continue;
-    groups[c[0]].push(c);
+    (groups[c[0]] = groups[c[0]] || []).push(c);
   }
   let html = opts.placeholder ? '<option value="">' + esc(opts.placeholder) + '</option>' : '';
-  html += '<optgroup label="Rack A">' + groups.A.map(c => '<option value="' + c + '"' + (c === selected ? ' selected' : '') + '>' + c + '</option>').join('') + '</optgroup>';
-  html += '<optgroup label="Rack B">' + groups.B.map(c => '<option value="' + c + '"' + (c === selected ? ' selected' : '') + '>' + c + '</option>').join('') + '</optgroup>';
+  ['A', 'B', 'C', 'D', 'E', 'F'].forEach(L => {
+    if (!groups[L] || !groups[L].length) return;
+    html += '<optgroup label="Rack ' + L + '">' + groups[L].map(c => '<option value="' + c + '"' + (c === selected ? ' selected' : '') + '>' + c + '</option>').join('') + '</optgroup>';
+  });
+  Object.keys(groups).filter(k => !'ABCDEF'.includes(k)).sort().forEach(L => {
+    html += '<optgroup label="Otras">' + groups[L].map(c => '<option value="' + c + '"' + (c === selected ? ' selected' : '') + '>' + c + '</option>').join('') + '</optgroup>';
+  });
   html += '<optgroup label="Zona especial"><option value="Piso"' + (selected === 'Piso' ? ' selected' : '') + '>Piso</option></optgroup>';
   return html;
 }
@@ -6518,7 +6567,7 @@ function openMovModal(mov, linea, tipoFijo) {
         fieldHTML('mv-dua', 'DUA', inp('mv-dua', m.dua, 'list="dl-dua" placeholder="ej. 819365"')) +
         fieldHTML('mv-prod', 'Producto', inp('mv-prod', m.producto, 'list="dl-prod" placeholder="ej. Silicon Paper (o escribí uno nuevo)"')) +
         fieldHTML('mv-med', 'Medida', inp('mv-med', m.medida, 'list="dl-med" placeholder="ej. 40×20, 6x2840grs"')) +
-        fieldHTML('mv-coord', 'Coordenada', '<select id="mv-coord">' + coordOptions(m.coordenada, { placeholder: 'Seleccionar…' }) + '</select>', 'Rack A/B (A000–B990, de 10 en 10) o Piso') +
+        fieldHTML('mv-coord', 'Coordenada', '<select id="mv-coord">' + coordOptions(m.coordenada, { placeholder: 'Seleccionar…' }) + '</select>', 'Módulos A–F según el plano real (numeración serpenteante) o Piso') +
         '<div id="mv-nivel-wrap" style="display:none">' + fieldHTML('mv-nivel', 'Nivel (altura)', '<select id="mv-nivel"></select>', 'Se activa cuando la coordenada tiene alturas mapeadas en el Mapa 3D') + '</div>' +
         fieldHTML('mv-cant', 'Cantidad (cajas)', inp('mv-cant', m.cantidad, 'type="number" min="0.01" step="any" placeholder="Siempre positivo"')) +
         fieldHTML('mv-ref', 'Ref. / documento', inp('mv-ref', m.refDoc, 'list="dl-ref" placeholder="ej. Ingreso, Salida, Remito 123"')) +
@@ -7245,7 +7294,7 @@ function openConteoCiclicoModal() {
     size: 'wide',
     body:
       '<div class="filterbar" style="margin-bottom:12px">' +
-        '<label style="font-size:12px;font-weight:700;color:var(--text-2)">Zona <select id="cc-zona"><option value="">Todo el depósito</option><option value="A">Rack A</option><option value="B">Rack B</option><option value="Piso">Piso</option></select></label>' +
+        '<label style="font-size:12px;font-weight:700;color:var(--text-2)">Zona <select id="cc-zona"><option value="">Todo el depósito</option><option value="A">Rack A</option><option value="B">Rack B</option><option value="C">Rack C</option><option value="D">Rack D</option><option value="E">Rack E</option><option value="F">Rack F</option><option value="Piso">Piso</option></select></label>' +
         '<label class="checkline"><input type="checkbox" id="cc-solo" checked> Solo posiciones con saldo</label>' +
         '<span class="filter-count" id="cc-count"></span>' +
       '</div>' +
@@ -7594,7 +7643,7 @@ function normTipo(t) {
 
 /* ---------- Maestro de coordenadas ampliable ---------- */
 function rebuildCoords(extras) {
-  const base = buildCoordList(); // A000..A990, B000..B990, Piso
+  const base = buildCoordList(); // 406 posiciones reales (módulos A–F) + Piso
   const set = new Set(base);
   const add = [];
   for (const c of extras || []) {
@@ -7603,7 +7652,8 @@ function rebuildCoords(extras) {
     set.add(cc); add.push(cc);
   }
   add.sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
-  COORDS = base.slice(0, 200).concat(add).concat(['Piso']);
+  /* coordenadas históricas fuera del plano (si las hubiera) al final, antes de Piso */
+  COORDS = base.filter(isRackCoord).concat(add).concat(['Piso']);
 }
 
 /* ============================================================
@@ -7901,7 +7951,7 @@ function buildWorkbook() {
   const sAoa = [
     ['STOCK ACTUAL · FOTO REAL POR POSICIÓN'],
     ['Muestra el inventario vigente real en cada coordenada del depósito'],
-    ['POSICIONES OCUPADAS:', k.ocupadas, 'POSICIONES LIBRES (RACKS A y B):', k.libres, 'TOTAL CAJAS EN DEPÓSITO:', k.totalCajas],
+    ['POSICIONES OCUPADAS:', k.ocupadas, 'POSICIONES LIBRES (RACKS A–F):', k.libres, 'TOTAL CAJAS EN DEPÓSITO:', k.totalCajas],
     ['Coordenada', 'Stock Actual (Cajas)', 'Estado', 'N.º Stock Vigente', 'Cliente', 'Producto', 'Medida / Peso', 'Observaciones / Detalle'],
   ];
   for (const coord of COORDS) {
@@ -8097,8 +8147,7 @@ function sectorDeCoord(c) {
   const s = String(c == null ? '' : c).trim().toUpperCase();
   if (!s) return '—';
   if (s === 'PISO' || s === 'P') return 'Piso';
-  if (s[0] === 'A') return 'Rack A';
-  if (s[0] === 'B') return 'Rack B';
+  if (/^[A-F]/.test(s)) return 'Rack ' + s[0];
   return '—';
 }
 function stampNow() {
@@ -8444,7 +8493,7 @@ function openListadoPalletsModal() {
     body:
       '<div class="listado-filters">' +
         '<select id="lp-cli"><option value="todos">Todos los clientes</option>' + clientes.map(c => '<option>' + esc(c) + '</option>').join('') + '</select>' +
-        '<select id="lp-sector"><option value="todos">Todos los sectores</option><option value="Rack A">Rack A</option><option value="Rack B">Rack B</option><option value="Piso">Piso</option></select>' +
+        '<select id="lp-sector"><option value="todos">Todos los sectores</option><option value="Rack A">Rack A</option><option value="Rack B">Rack B</option><option value="Rack C">Rack C</option><option value="Rack D">Rack D</option><option value="Rack E">Rack E</option><option value="Rack F">Rack F</option><option value="Piso">Piso</option></select>' +
         '<div class="search-box" style="flex:1;min-width:170px">' + ICONS.search + '<input id="lp-dua" placeholder="Filtrar por DUA…" autocomplete="off"></div>' +
         '<span class="filter-count" id="lp-count"></span>' +
       '</div>' +
