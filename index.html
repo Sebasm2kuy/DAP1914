@@ -3415,6 +3415,7 @@ function loadSeed() {
   syncCatalogoFromMovs();
   DB.usuarios = usuariosPrevios;
   ensureUsuarios();
+  DB.esDemo = true; /* datos de fábrica: no deben pisar un respaldo real de Drive */
   saveDB();
 }
 
@@ -7589,6 +7590,7 @@ function aplicarImportacion(parsed, mode) {
     // Se conservan snapshots (respaldo pre-importación), auditoría, configuración y cuentas de usuario
     const snaps = DB.snapshots, audit = DB.auditoria, conf = DB.config, usuarios = DB.usuarios;
     DB = emptyDB();
+    DB.esDemo = false;
     DB.snapshots = snaps; DB.auditoria = audit; DB.config = conf; DB.usuarios = usuarios;
   }
   // Movimientos (numeración de orden cronológico estable)
@@ -7850,13 +7852,42 @@ function backupJSON() {
   toast('Respaldo descargado', 'ok', a.download);
 }
 /* ---------- Restauración desde objeto de respaldo (JSON local o Drive) ---------- */
+/* Combina las cuentas de este navegador con las de la copia restaurada de
+   Drive: las cuentas que solo estaban en Drive vuelven (p. ej. Raúl en un
+   navegador limpiado) y, en las duplicadas, gana la versión de Drive (la más
+   reciente), salvo el usuario de la sesión activa que conserva la local. */
+function mergeUsuariosDesdeDrive(locales, remotos) {
+  const base = Array.isArray(locales) ? locales.slice() : [];
+  if (!Array.isArray(remotos) || !remotos.length) return { lista: base, agregados: [] };
+  const norm = s => normKey(String(s || ''));
+  const sesionId = (typeof SESION !== 'undefined' && SESION) ? SESION.id : null;
+  const indice = new Map();
+  base.forEach(u => { if (u && u.id) { indice.set(u.id, u); indice.set('u:' + norm(u.usuario), u); } });
+  const agregados = [];
+  for (const ru of remotos) {
+    if (!ru || !ru.id) continue;
+    const existente = indice.get(ru.id) || indice.get('u:' + norm(ru.usuario));
+    if (!existente) {
+      base.push(ru);
+      indice.set(ru.id, ru); indice.set('u:' + norm(ru.usuario), ru);
+      agregados.push(ru.nombre || ru.usuario);
+      continue;
+    }
+    if (existente.id === sesionId) continue;
+    Object.assign(existente, ru);
+  }
+  return { lista: base, agregados };
+}
 function restaurarDataObj(data, label) {
   crearSnapshot('Pre-restauración · ' + label);
   const conf = DB.config, snaps = DB.snapshots, usuarios = DB.usuarios;
   DB = Object.assign(emptyDB(), data.db);
-  DB.config = conf; DB.snapshots = snaps; DB.usuarios = usuarios; // conservar configuración, respaldos y cuentas de usuario
+  const fusion = mergeUsuariosDesdeDrive(usuarios, data.db && data.db.usuarios);
+  DB.config = conf; DB.snapshots = snaps; DB.usuarios = fusion.lista; // configuración y respaldos locales; cuentas combinadas con Drive
+  DB.esDemo = false;
   rebuildCoords((data.coords || []).concat(DB.movimientos.map(m => m.coordenada)));
   invalidate(); saveDB();
+  if (fusion.agregados.length) auditar('Cuentas restauradas desde Drive', fusion.agregados.join(', '));
   auditar('Datos restaurados', label + ' · ' + fmtInt(DB.movimientos.length) + ' movimientos · ' + (DB.clientes || []).length + ' clientes');
   $('#onboard').style.display = 'none';
   renderNavCounts(); setView('panel');
@@ -8707,6 +8738,15 @@ async function driveSaveNow(opts) {
   if (dbIsEmpty()) { if (!o.silent) toast('No hay datos para guardar todavía', 'warn'); return false; }
   await gAuth(false);
   await gEnsureTree();
+  /* Protección del respaldo: si Drive ya tiene una base guardada y este
+     navegador solo tiene datos de demostración (p. ej. tras un borrado local),
+     no se sube nada para no reemplazar la copia real por datos de fábrica. */
+  const jfPrevio = GState.ids.json ? { id: GState.ids.json } : await gFindIn(GState.ids.folder, DRIVE_JSON_NAME, 'files(id)');
+  if (DB.esDemo && jfPrevio) {
+    if (!o.silent) { toast('No se guardó: son datos de demostración', 'warn', 'Drive ya tiene tu base real. Descargala con el botón Drive para restaurarla antes de guardar.'); }
+    else { console.warn('driveSaveNow bloqueado: datos de demostración con respaldo existente en Drive'); }
+    return false;
+  }
   /* Maestro .xlsx (las pestañas del sistema) */
   const xbytes = workbookBytes(buildWorkbook());
   const dbf = GState.ids.db ? { id: GState.ids.db } : await gFindIn(GState.ids.folder, DRIVE_DB_NAME, 'files(id)');
@@ -8715,7 +8755,7 @@ async function driveSaveNow(opts) {
   /* Estado completo JSON (reservas, aduana, auditoría…) para fidelidad total entre dispositivos */
   const payload = { app: 'WMS-Deposito-Fiscal', version: 2, exportado: new Date().toISOString(), coords: COORDS, db: DB };
   const jbytes = new TextEncoder().encode(JSON.stringify(payload));
-  const jf = GState.ids.json ? { id: GState.ids.json } : await gFindIn(GState.ids.folder, DRIVE_JSON_NAME, 'files(id)');
+  const jf = jfPrevio;
   const up2 = await gUploadBytes(DRIVE_JSON_NAME, 'application/json', jbytes, GState.ids.folder, jf && jf.id);
   GState.ids.json = up2.id;
   if (o.backup) {
@@ -9305,7 +9345,16 @@ async function autoConectarDrive(conDescarga) {
     return true;
   }
   if (!gConfigured()) return false;
-  try { await gAuth(false); } catch (e) { return false; }
+  try {
+    await gAuth(false);
+  } catch (e) {
+    /* Sin reconexión silenciosa (navegador limpiado o sin sesión de Google
+       activa en este navegador): aviso accionable en lugar de fallar en silencio */
+    if (typeof puede === 'function' && puede('drive_leer')) {
+      toast('No se pudo reconectar a Drive en silencio', 'warn', 'Abrí el botón Drive → Conectar y luego «Descargar de Drive» para traer la última copia guardada a este navegador.');
+    }
+    return false;
+  }
   try { await gEnsureTree(); } catch (e) { /* la estructura se crea en la próxima operación */ }
   toast('Google Drive conectado', 'ok', 'Conexión automática al iniciar · cuenta ' + GState.email);
   renderCurrentViewSafe();
@@ -9330,7 +9379,11 @@ function bindRenovacionToken() {
     _tokenClickHasta = Date.now() + 5 * 60 * 1000; /* no martillar a Google si falla */
     gAuth(false).then(() => {
       _tokenClickHasta = 0;
-      if (!yaConectado && gConnected()) toast('Google Drive conectado', 'ok', 'Conexión automática · cuenta ' + GState.email);
+      if (!yaConectado && gConnected()) {
+        toast('Google Drive conectado', 'ok', 'Conexión automática · cuenta ' + GState.email);
+        /* Recuperada la sesión: baja la última copia guardada sin preguntar nada */
+        if (typeof autoDescargarDrive === 'function') autoDescargarDrive();
+      }
     }).catch(() => {});
   }, true);
 }
@@ -9378,7 +9431,12 @@ async function autoDescargarDrive() {
     if (typeof hideOnboard === 'function') hideOnboard();
     toast('Datos actualizados desde Drive', 'ok', 'Automático al iniciar sesión · ' + fmtInt(DB.movimientos.length) + ' movimientos · ' + DB.clientes.length + ' clientes · ' + DB.productos.length + ' SKUs');
     return true;
-  } catch (e) { return false; }
+  } catch (e) {
+    if (typeof puede === 'function' && puede('drive_leer')) {
+      toast('No se pudo actualizar desde Drive', 'warn', 'Se sigue usando la copia local. Probá «Descargar de Drive» en el botón Drive.');
+    }
+    return false;
+  }
 }
 
 /* ---------- Errores de Google con mensaje accionable ---------- */
