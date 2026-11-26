@@ -3408,8 +3408,11 @@ function isRackCoord(c) { return /^[A-F][0-9][0-9]0$/.test(String(c || '')); }
 function isCoord(c) { return String(c) === 'Piso' || isRackCoord(c); }
 
 /* ---------- Plano real del depósito (MAPA_DEPOSITO_1914_ESCALA_REAL.xlsx) ----------
-   6 módulos A–F · 406 posiciones codificadas × 4 niveles = 1.624 ubicaciones.
-   Cada módulo es una franja doble: frente + pasillo de 2,00 m + dorso (4,40 m de fondo).
+   6 módulos A–F · 384 posiciones codificadas × 4 niveles = 1.536 ubicaciones.
+   Módulos A–E: franja doble (frente + pasillo de 2,00 m + dorso, 4,40 m de fondo).
+   F: estantería de UN solo lado (sin espalda — la franja norte F200–F410 del plano
+   viejo no existe físicamente y se quitó); F190–F000 en la franja sur, 22 m con 2
+   huecos sin código al oeste (colIni 26 deja ese margen, igual que el plano).
    Numeración serpenteante: frente ascendente 000→… y dorso continuando descendente …→890.
    Cruces de 2 m (sin posición): A dorso 680/690 · B/C frente 200/210 · B/C dorso 660/670 · D frente 200/210.
    Módulos A–D a lo ancho (0–45 m); D-dorso, E y F en la mitad este (24–45 m). */
@@ -3421,7 +3424,7 @@ const DEPOSITO_REAL = {
     { id: 'C', z: 17.5, pos: 84, metros: 44, este: false },
     { id: 'D', z: 30.0, pos: 64, metros: 44, este: false },
     { id: 'E', z: 42.5, pos: 44, metros: 22, este: true },
-    { id: 'F', z: 55.0, pos: 42, metros: 22, este: true },
+    { id: 'F', z: 55.0, pos: 20, metros: 22, este: true },
   ],
   bloques: [
     { id: 'Asup', mod: 'A', nombre: 'Módulo A · Frente (A000–A450)', desde: 'A000', hasta: 'A450', colIni: 0, z: -7.5 },
@@ -3440,8 +3443,7 @@ const DEPOSITO_REAL = {
     { id: 'Dinfder', mod: 'D', nombre: 'Módulo D · Dorso este (D650–D440)', desde: 'D650', hasta: 'D440', colIni: 24, z: 38.5 },
     { id: 'Esup', mod: 'E', nombre: 'Módulo E · Frente (E000–E210)', desde: 'E000', hasta: 'E210', colIni: 24, z: 42.5 },
     { id: 'Einf', mod: 'E', nombre: 'Módulo E · Dorso (E430–E220)', desde: 'E430', hasta: 'E220', colIni: 24, z: 51.0 },
-    { id: 'Fsup', mod: 'F', nombre: 'Módulo F · Frente (F200–F410)', desde: 'F200', hasta: 'F410', colIni: 24, z: 55.0 },
-    { id: 'Finf', mod: 'F', nombre: 'Módulo F · Dorso (F190–F000)', desde: 'F190', hasta: 'F000', colIni: 24, z: 63.5 },
+    { id: 'Finf', mod: 'F', nombre: 'Módulo F · Estantería única (F190–F000)', desde: 'F190', hasta: 'F000', colIni: 26, z: 63.5 },
   ],
 };
 function bloqueCoords(b) {
@@ -3451,7 +3453,7 @@ function bloqueCoords(b) {
   for (let v = ini; v !== fin + st; v += st) out.push(b.desde[0] + String(v).padStart(3, '0'));
   return out;
 }
-/* Maestro de coordenadas: las 406 posiciones reales (módulos A–F) + Piso */
+/* Maestro de coordenadas: las 384 posiciones reales (módulos A–F) + Piso */
 function buildCoordList() {
   const list = [];
   DEPOSITO_REAL.bloques.forEach(b => bloqueCoords(b).forEach(c => list.push(c)));
@@ -4759,7 +4761,7 @@ RENDERERS.panel = function () {
       '<div class="card"><h2 class="card-title">' + ICONS.sku + ' Stock por producto <span class="right" id="panelTotalCajas"></span></h2><div id="panelProdTbl"></div></div>' +
       '<div class="card"><h2 class="card-title">' + ICONS.ship + ' Historial de contenedores / DUA <span class="right muted" style="text-transform:none">Ingresos por contenedor</span></h2><div id="panelCont"></div></div>' +
     '</div>' +
-    '<div class="card"><h2 class="card-title">' + ICONS.map + ' Mapa visual de racks · disposición real <span class="right muted" style="text-transform:none">Cenital según el plano a escala del depósito: 6 módulos A–F (406 posiciones × 4 niveles) con pasillo central de 2 m, paso transversal y mitad este · misma geometría que el Mapa 3D · clic en una posición para el detalle y registrar salidas o traslados</span></h2>' +
+        '<div class="card"><h2 class="card-title">' + ICONS.map + ' Mapa visual de racks · disposición real <span class="right muted" style="text-transform:none">Cenital según el plano a escala del depósito: 6 módulos A–F (384 posiciones × 4 niveles; F de un solo lado, sin espalda) con pasillo central de 2 m, paso transversal y mitad este · misma geometría que el Mapa 3D · clic en una posición para el detalle y registrar salidas o traslados</span></h2>' +
       '<div class="rack-tools">' +
         '<label style="font-size:12px;font-weight:700;color:var(--text-2)">Módulo <select id="mapRack"><option value="todos">Todo el depósito</option><option value="A">Módulo A</option><option value="B">Módulo B</option><option value="C">Módulo C</option><option value="D">Módulo D</option><option value="E">Módulo E</option><option value="F">Módulo F</option><option value="P">Piso</option></select></label>' +
         '<label style="font-size:12px;font-weight:700;color:var(--text-2)">Estado <select id="mapEstado">' +
@@ -4948,7 +4950,7 @@ RENDERERS.stock = function (patch) {
       (puede('mov') ? '<button class="btn" id="stkConteo">' + ICONS.count + ' Conteo cíclico</button>' : '')) +
     '<div class="kpi-grid">' +
       '<div class="kpi"><div class="kpi-label">Posiciones ocupadas</div><div class="kpi-value">' + fmtInt(k.ocupadas) + '</div><div class="kpi-sub">En racks A y B (excluye Piso)</div></div>' +
-      '<div class="kpi ok"><div class="kpi-label">Posiciones libres</div><div class="kpi-value">' + fmtInt(k.libres) + '</div><div class="kpi-sub">En racks A y B · ' + fmtInt(RACK_COORDS().length) + ' posiciones totales</div></div>' +
+      '<div class="kpi ok"><div class="kpi-label">Posiciones libres</div><div class="kpi-value">' + fmtInt(k.libres) + '</div><div class="kpi-sub">En racks A–F · ' + fmtInt(RACK_COORDS().length) + ' posiciones totales</div></div>' +
       '<div class="kpi"><div class="kpi-label">Total cajas en depósito</div><div class="kpi-value">' + fmtInt(k.totalCajas) + '</div><div class="kpi-sub">Incluye racks A, B y Piso</div></div>' +
       (k.revisar || k.compartidas
         ? '<div class="kpi ' + (k.revisar ? 'danger' : 'shared') + '"><div class="kpi-label">Alertas</div><div class="kpi-value">' + fmtInt(k.revisar + k.compartidas) + '</div><div class="kpi-sub">' + (k.revisar ? '<b>' + k.revisar + '</b> a revisar · ' : '') + (k.compartidas ? '<b>' + k.compartidas + '</b> palets compartidos' : '') + '</div></div>'
@@ -5310,7 +5312,7 @@ RENDERERS.mapa3d = function () {
   const chip = (f, txt) => '<button class="btn sm ' + (e.filtro === f ? 'primary' : 'ghost') + '" data-f="' + f + '">' + txt + '</button>';
   const preset = (c, txt) => '<button class="btn sm ghost" data-cam="' + c + '">' + txt + '</button>';
   el.innerHTML = viewHead('Mapa 3D · Cámara',
-      'Geometría del plano real a escala del depósito (MAPA_DEPOSITO_1914_ESCALA_REAL.xlsx): 6 módulos A–F con frente + pasillo de 2 m + dorso cada uno; A–D a lo ancho (0–45 m) y D-dorso, E y F en la mitad este (24–45 m), unidos por el paso central de 2 m. 406 posiciones × 4 niveles = 1.624 ubicaciones. Alturas mapeables por coordenada; solo lectura.',
+      'Geometría del plano real a escala del depósito (MAPA_DEPOSITO_1914_ESCALA_REAL.xlsx): módulos A–E dobles (frente + pasillo de 2 m + dorso) y F de un solo lado sin espalda (la franja F200–F410 del plano viejo no existe y se quitó); A–D a lo ancho (0–45 m) y D-dorso, E y F en la mitad este (24–45 m), unidos por el paso central de 2 m. 384 posiciones × 4 niveles = 1.536 ubicaciones. Alturas mapeables por coordenada; solo lectura.',
       (puede('abm') ? '<button class="btn" id="m3Mapear">' + ICONS.gear + ' Mapear alturas</button>' : '')) +
     '<div class="filterbar mapa3d-bar">' +
       '<div class="search-box">' + ICONS.search + '<input id="m3Q" placeholder="Buscar coordenada (ej. A000, A150, A890)…"></div>' +
@@ -7798,7 +7800,7 @@ function normTipo(t) {
 
 /* ---------- Maestro de coordenadas ampliable ---------- */
 function rebuildCoords(extras) {
-  const base = buildCoordList(); // 406 posiciones reales (módulos A–F) + Piso
+  const base = buildCoordList(); // 384 posiciones reales (módulos A–F) + Piso
   const set = new Set(base);
   const add = [];
   for (const c of extras || []) {
